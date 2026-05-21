@@ -1,6 +1,6 @@
 FROM fedora:latest
 
-# Install base development tools and utilities
+# Install base development tools, flatpak, and snapd
 RUN dnf -y update && \
     dnf -y install \
         dnf-plugins-core \
@@ -9,7 +9,11 @@ RUN dnf -y update && \
         sudo \
         curl \
         wget \
-        rpm-build && \
+        rpm-build \
+        flatpak \
+        snapd \
+        squashfuse \
+        fuse && \
     dnf clean all
 
 # Enable RPM Fusion repositories
@@ -17,14 +21,16 @@ RUN dnf install -y \
     https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
     https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
 
-# Create a default user for package installations
+# Create default user
 RUN useradd -m -G wheel penta && \
     echo 'penta ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/penta
 
+# Add Flathub remote
+RUN flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+# Snap needs special handling (systemd) inside container; leave it installed but inactive.
+
 USER penta
 WORKDIR /home/penta
-
-# Create directory for Penta Resolver build operations
-RUN mkdir -p /home/penta/penta-build
 
 CMD ["/bin/bash"]
