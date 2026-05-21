@@ -7,10 +7,10 @@ Requires=mosquitto.service
 Type=simple
 User=penta
 Group=penta
-ExecStart=/usr/bin/python3 /opt/penta/src/hub/penta-hub.py
+ExecStart=/usr/bin/python3 /opt/penta/hub/penta-hub.py
 Restart=on-failure
 RestartSec=5
-Environment=PYTHONUNBUFFERED=1
+Environment=PENTA_CONFIG=/etc/penta/config.yaml PYTHONUNBUFFERED=1
 StandardOutput=journal
 StandardError=journal
 
