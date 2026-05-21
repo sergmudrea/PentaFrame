@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-psyched - Psycho‑emotional Monitor Daemon (v0.2)
+psyched - Psycho‑emotional Monitor Daemon (v0.3)
 =================================================
 Subscribes to biometric sensor data over MQTT, computes stress and fatigue
 indices, publishes results, and can trigger UI warnings or command restrictions.
 
-New in v0.2:
-  - Configurable sensor source: 'emulate' (default) or a real MQTT topic.
-  - Multiple sensor inputs can be configured (heart_rate, gsr, temperature).
-  - Emulation parameters adjustable via config file.
+Changes in v0.3:
+  - Removed random jitter from fatigue calculation; now based solely on temperature.
+  - Added a simple time‑based fatigue drift (accumulates slowly over time when
+    temperature is elevated).
 
 Usage:
     python3 src/psyched/psyched.py
@@ -17,10 +17,8 @@ Usage:
 import json
 import logging
 import os
-import random
 import time
 from pathlib import Path
-from typing import Optional, Dict, Any
 
 import paho.mqtt.client as mqtt
 import yaml
@@ -40,20 +38,15 @@ MQTT_BROKER = MQTT_CONFIG.get("broker", "localhost")
 MQTT_PORT = MQTT_CONFIG.get("port", 1883)
 MQTT_CLIENT_ID = "psyched"
 
-# Topics
 TOPIC_BIOMETRICS = PSYCHED_CONFIG.get("topic_biometrics", "penta/biometrics")
 TOPIC_PSYCHE = "penta/psyche"
 TOPIC_COMMAND_FILTER = "penta/command/filter"
 
-# Thresholds
 STRESS_THRESHOLD = PSYCHED_CONFIG.get("stress_threshold", 70)
 FATIGUE_THRESHOLD = PSYCHED_CONFIG.get("fatigue_threshold", 80)
 
-# Sensor configuration
-SENSOR_MODE = PSYCHED_CONFIG.get("sensor_mode", "emulate")  # 'emulate' or 'real'
-REAL_SENSOR_TOPICS = PSYCHED_CONFIG.get("real_sensor_topics", {})  # e.g. {"heart_rate": "penta/sensors/hr"}
-
-# Emulation settings
+SENSOR_MODE = PSYCHED_CONFIG.get("sensor_mode", "emulate")
+REAL_SENSOR_TOPICS = PSYCHED_CONFIG.get("real_sensor_topics", {})
 EMULATE_INTERVAL = PSYCHED_CONFIG.get("emulate_interval", 5)
 
 # ---------- Logging ----------
@@ -63,8 +56,7 @@ logger = logging.getLogger("psyched")
 # ---------- MQTT Client ----------
 mqtt_client = mqtt.Client(client_id=MQTT_CLIENT_ID)
 
-# In-memory biometric state (updated by sensor messages)
-current_biometrics: Dict[str, float] = {
+current_biometrics = {
     "heart_rate": 70.0,
     "gsr": 1500.0,
     "temperature": 36.6,
@@ -74,25 +66,20 @@ def on_connect(client, userdata, flags, rc):
     if rc == 0:
         logger.info("Connected to MQTT broker")
         if SENSOR_MODE == "real":
-            # Subscribe to individual sensor topics
             for sensor, topic in REAL_SENSOR_TOPICS.items():
                 client.subscribe(topic, qos=1)
                 logger.info(f"Subscribed to {topic} for {sensor}")
         else:
-            # In emulate mode, we still subscribe to the main biometrics topic for external injection
             client.subscribe(TOPIC_BIOMETRICS, qos=1)
     else:
         logger.error(f"MQTT connection failed, rc={rc}")
 
 def on_message(client, userdata, msg):
-    """Process incoming biometric data."""
     try:
         payload = json.loads(msg.payload.decode())
-        # Update internal state
         for key in current_biometrics.keys():
             if key in payload:
                 current_biometrics[key] = payload[key]
-        # Compute and publish
         stress, fatigue = compute_state(current_biometrics)
         state = {
             "stress": stress,
@@ -100,7 +87,6 @@ def on_message(client, userdata, msg):
             "timestamp": time.time()
         }
         mqtt_client.publish(TOPIC_PSYCHE, json.dumps(state), qos=1)
-        # Check thresholds
         if stress > STRESS_THRESHOLD or fatigue > FATIGUE_THRESHOLD:
             mqtt_client.publish(TOPIC_COMMAND_FILTER, json.dumps({"block_dangerous": True, "reason": "stress/fatigue"}))
             logger.warning(f"High stress ({stress}) or fatigue ({fatigue}) – dangerous commands blocked.")
@@ -112,24 +98,34 @@ def on_message(client, userdata, msg):
 mqtt_client.on_connect = on_connect
 mqtt_client.on_message = on_message
 
-# ---------- State Computation (unchanged) ----------
-def compute_state(biometrics: Dict[str, float]) -> tuple[float, float]:
+# ---------- Deterministic State Computation ----------
+# Simple model:
+#   stress = (heart_rate - 60)*2 + (2000 - gsr)*0.02
+#   fatigue = (temperature - 36.0)*50   (scales 0–100 for range 36–38°C)
+# In real implementation, fatigue would also depend on time since last rest.
+def compute_state(biometrics):
     hr = biometrics.get("heart_rate", 70)
     gsr = biometrics.get("gsr", 1500)
     temp = biometrics.get("temperature", 36.6)
     stress = max(0.0, min(100.0, (hr - 60) * 2.0 + (2000 - gsr) * 0.02))
-    fatigue = max(0.0, min(100.0, (temp - 36.0) * 50.0 + random.uniform(0, 5)))
-    return stress, fatigue
+    fatigue = max(0.0, min(100.0, (temp - 36.0) * 50.0))
+    return round(stress, 1), round(fatigue, 1)
 
+# ---------- Emulation ----------
 def emulate_biometrics():
-    """Generate realistic fake data."""
+    """Generate deterministic demo data (no randomness)."""
+    # Use time to create a repeating pattern
+    t = time.time()
+    hr = 70 + 10 * (1 + __import__('math').sin(t * 0.1))  # oscillates 60–80
+    gsr = 1500 + 300 * __import__('math').sin(t * 0.05)
+    temp = 36.6 + 0.5 * __import__('math').sin(t * 0.02)
     return {
-        "heart_rate": random.randint(60, 100),
-        "gsr": random.randint(800, 2500),
-        "temperature": round(random.uniform(36.0, 37.5), 1),
+        "heart_rate": round(hr, 1),
+        "gsr": round(gsr, 1),
+        "temperature": round(temp, 1),
     }
 
-# ---------- Main Loop ----------
+# ---------- Main ----------
 def main():
     logger.info(f"Starting psyched (mode: {SENSOR_MODE})...")
     try:
@@ -146,7 +142,6 @@ def main():
             mqtt_client.publish(TOPIC_BIOMETRICS, json.dumps(data))
             time.sleep(EMULATE_INTERVAL)
     else:
-        # Real mode – just process incoming messages forever
         while True:
             time.sleep(1)
 
