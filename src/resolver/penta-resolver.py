@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 """
-Penta Resolver - Smart Docking Engine (v1.6.5)
+Penta Resolver - Smart Docking Engine (v1.6.6)
 ===============================================
-Accepts installation requests, queries Penta Hub, manages containers,
-executes installs/uninstalls, and manages desktop/wrapper files.
+Accepts install/uninstall requests via Unix domain socket
+(/run/penta/resolver.sock) and manages containers.
 
-Changes in v1.6.5:
-  - Uses 'priority' from Hub search results (no hardcoded source_order).
-  - On successful install, stores metadata in ~/.local/share/penta/installed.json.
-  - On uninstall, reads metadata, attempts container-side removal, then deletes local files.
-  - uninstall now accepts 'username' to locate the correct home directory.
-  - All previous fixes (image resolution, client-side launchers) retained.
+Changes in v1.6.6:
+  - Runs on Unix socket (same as Hub) for local-only, permission-based access.
+  - Uses 'priority' from Hub; performs container-side uninstall.
+  - All previous fixes retained.
 
-Usage:
-    uvicorn src.resolver.penta-resolver:app --host 0.0.0.0 --port 8500
+Usage (production):
+    uvicorn src.resolver.penta-resolver:app --uds /run/penta/resolver.sock --uid penta --gid penta
 """
 
 import asyncio
@@ -61,9 +59,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] reso
 logger = logging.getLogger("penta-resolver")
 
 # ---------- FastAPI ----------
-app = FastAPI(title="Penta Resolver", version="1.6.5")
+app = FastAPI(title="Penta Resolver", version="1.6.6")
 
-# In-memory task store
 tasks: Dict[str, Dict[str, Any]] = {}
 
 # ---------- Pydantic Models ----------
@@ -86,7 +83,7 @@ class TaskStatus(BaseModel):
     log: list[str] = []
     result: Optional[dict] = None
 
-# ---------- Helpers ----------
+# ---------- Helpers (unchanged from v1.6.5) ----------
 def get_user_home(username: Optional[str]) -> Path:
     if username:
         home = Path(f"/home/{username}")
@@ -111,7 +108,6 @@ def load_metadata(home: Path) -> List[Dict[str, Any]]:
 
 def save_metadata(home: Path, entry: Dict[str, Any]):
     entries = load_metadata(home)
-    # Remove existing entry with same name if any
     entries = [e for e in entries if e.get("name") != entry["name"]]
     entries.append(entry)
     with open(get_metadata_file(home), "w") as f:
@@ -137,7 +133,6 @@ async def search_package(package: str, source: str = "all") -> list[dict]:
             return (await resp.json()).get("results", [])
 
 def rank_results(results: list[dict]) -> dict:
-    # Hub already sorts by priority ascending; return first
     return results[0] if results else {}
 
 async def run_command(cmd: str, log_list: list[str]) -> int:
@@ -244,15 +239,12 @@ def ensure_path_in_profile(home_dir: Path):
                 f.write(f"\n# Penta OS\n{line}\n")
     else:
         profile.write_text(f"{line}\n")
-    logger.info(f"PATH updated in {profile}")
 
 def remove_wrappers_and_desktop(home_dir: Path, app_name: str):
-    # Remove desktop file
     desktop_file = home_dir / ".local" / "share" / "applications" / f"{app_name.replace(' ', '_')}.desktop"
     if desktop_file.exists():
         desktop_file.unlink()
         logger.info(f"Removed {desktop_file}")
-    # Remove wrapper scripts (may have numeric suffixes)
     bin_dir = home_dir / ".local" / "bin"
     for f in bin_dir.glob(f"{app_name}*"):
         f.unlink()
@@ -289,17 +281,15 @@ async def perform_install(task_id: str, request: InstallRequest):
             except Exception as e:
                 logger.warning(f"Snapshot failed: {e}")
 
-        # Install
         if source == "exe" and request.package.startswith("http"):
             ret = install_exe(container_name, request.package, log)
             exec_name = chosen.get("executable", "app")
-            uninstall_cmd = ""   # Windows uninstall is manual for now
+            uninstall_cmd = ""
         else:
             install_cmd = chosen.get("install_command", f"echo install {chosen['name']}")
             user = containers_def.get(container_name, {}).get("user")
             ret = install_in_container(container_name, install_cmd, log, user)
             exec_name = chosen.get("executable", chosen["name"])
-            # Determine uninstall command
             uninstall_cmd = containers_def.get(container_name, {}).get("uninstall_command", "")
             if uninstall_cmd:
                 uninstall_cmd = uninstall_cmd.replace("{package}", exec_name)
@@ -316,7 +306,6 @@ async def perform_install(task_id: str, request: InstallRequest):
         generate_desktop_file(chosen["name"], wrapper_name, chosen.get("icon_url", ""), home_dir)
         ensure_path_in_profile(home_dir)
 
-        # Save metadata for uninstall
         meta_entry = {
             "name": chosen["name"],
             "container": container_name,
@@ -345,19 +334,15 @@ async def perform_uninstall(request: UninstallRequest):
     home_dir = get_user_home(username)
     app_name = request.app_name
 
-    # Load metadata
     meta = remove_metadata(home_dir, app_name)
     if meta:
         container_name = meta.get("container")
         uninstall_cmd = meta.get("uninstall_command", "")
-        # Attempt container-side uninstall
         if container_name and uninstall_cmd:
             log_lines = []
             ret = install_in_container(container_name, uninstall_cmd, log_lines)
             if ret != 0:
                 logger.warning(f"Container uninstall returned non-zero: {ret}")
-            # Log output?
-    # Remove wrappers and desktop files regardless
     remove_wrappers_and_desktop(home_dir, app_name)
     return True
 
@@ -380,7 +365,6 @@ async def api_task_status(task_id: str):
 async def api_installed():
     home_dir = Path.home()
     entries = load_metadata(home_dir)
-    # Return list of installed names; also can read desktop dir
     apps = []
     if entries:
         apps = [{"name": e["name"]} for e in entries]
