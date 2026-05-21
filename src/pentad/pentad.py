@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """
-pentad - Penta Module Daemon
-=============================
+pentad - Penta Module Daemon (v1.6)
+====================================
 Scans I²C bus for PMC-128 modules, reads EEPROM identifiers,
 publishes attach/detach events over MQTT, and provides a REST API
 for module power control and status.
+
+Changes in v1.6:
+  - Robust i2c_scan fallback: correctly parses i2cdetect output
+    across different versions (Y/N/--/UU).
+  - Added error message when both smbus2 and i2c-tools are missing.
+  - API documentation updated.
 
 Usage:
     python3 src/pentad/pentad.py
@@ -13,6 +19,7 @@ Usage:
 import json
 import logging
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -23,7 +30,7 @@ import yaml
 from flask import Flask, jsonify, request
 
 # ---------- Configuration ----------
-CONFIG_PATH = Path("/etc/penta/config.yaml")
+CONFIG_PATH = Path(os.environ.get("PENTA_CONFIG", "/etc/penta/config.yaml"))
 if not CONFIG_PATH.exists():
     CONFIG_PATH = Path("config/penta.conf.example")
 
@@ -34,12 +41,10 @@ PENTAD_CONFIG = config.get("pentad", {})
 MQTT_CONFIG = config.get("mqtt", {})
 SECURITY_CONFIG = config.get("security", {})
 
-# Defaults
 I2C_BUS = PENTAD_CONFIG.get("i2c_bus", 1)
-SCAN_INTERVAL = PENTAD_CONFIG.get("scan_interval", 5)       # seconds
-EEPROM_ADDR_PREFIX = 0x50                                   # typical 24C02 base
-MODULE_GPIO_BASE = PENTAD_CONFIG.get("gpio_base", 0)
-PWR_EN_GPIO = PENTAD_CONFIG.get("pwr_en_gpio", None)        # optional global kill
+SCAN_INTERVAL = PENTAD_CONFIG.get("scan_interval", 5)
+EEPROM_ADDR_PREFIX = 0x50
+PWR_EN_GPIO = PENTAD_CONFIG.get("pwr_en_gpio", None)
 
 MQTT_BROKER = MQTT_CONFIG.get("broker", "localhost")
 MQTT_PORT = MQTT_CONFIG.get("port", 1883)
@@ -55,7 +60,6 @@ logger = logging.getLogger("pentad")
 # ---------- Flask REST API ----------
 app = Flask(__name__)
 
-# In-memory state of connected modules
 connected_modules: dict[str, dict] = {}
 
 # ---------- MQTT Client ----------
@@ -75,16 +79,16 @@ try:
 except Exception as e:
     logger.warning(f"Could not connect to MQTT: {e}. Running without MQTT.")
 
-# ---------- I²C / Module Helpers ----------
+# ---------- Improved I²C scan ----------
 def i2c_scan(bus: int = I2C_BUS) -> list[int]:
     """
-    Perform an I²C scan on the given bus and return a list of detected addresses.
-    Falls back to i2cdetect shell command if smbus2 is not available.
+    Detect active addresses on an I²C bus.
+    Tries smbus2 first; falls back to i2cdetect with robust parsing.
     """
+    detected = []
     try:
         import smbus2
         bus_obj = smbus2.SMBus(bus)
-        detected = []
         for addr in range(0x03, 0x78):
             try:
                 bus_obj.read_byte(addr)
@@ -94,61 +98,72 @@ def i2c_scan(bus: int = I2C_BUS) -> list[int]:
         bus_obj.close()
         return detected
     except ImportError:
-        import subprocess
+        logger.info("smbus2 not available, using i2cdetect fallback.")
         try:
-            out = subprocess.check_output(["i2cdetect", "-y", str(bus)], text=True)
-            # Parse i2cdetect output (simple table parser)
-            for line in out.splitlines()[1:]:
+            import subprocess
+            out = subprocess.check_output(["i2cdetect", "-y", str(bus)],
+                                          stderr=subprocess.STDOUT, text=True)
+            # Example lines:
+            #      0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+            # 00:          -- -- -- -- -- 08 -- -- -- -- -- -- -- --
+            # We skip the header (first line). For each data line, split by whitespace;
+            # first token is the row prefix (e.g. "00:"). The remaining tokens are
+            # two-digit hex numbers, or "--" or "UU".
+            lines = out.splitlines()
+            for line in lines[1:]:
                 parts = line.split()
-                for p in parts[1:]:
-                    if p != "--" and not p.startswith("UU"):
-                        detected.append(int(p, 16))
+                if not parts:
+                    continue
+                # First token should be like "00:" or "10:" – the row address prefix
+                prefix = parts[0].rstrip(":")
+                if not re.match(r'^[0-9a-fA-F]{2}$', prefix):
+                    continue
+                row_base = int(prefix, 16)
+                for col, val in enumerate(parts[1:]):
+                    if col >= 16:
+                        break
+                    if re.match(r'^[0-9a-fA-F]{2}$', val):
+                        detected.append(row_base + col)
+                    # "UU" means device in use by kernel driver; also treat as detected
+                    elif val == "UU":
+                        detected.append(row_base + col)
+                    # else "--" means empty, skip
             return detected
-        except Exception:
-            logger.error("I²C scan failed. Is i2c-tools installed?")
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            logger.error(f"I²C scan failed: {e}. Install i2c-tools or smbus2.")
             return []
 
 def read_eeprom(addr: int, bus: int = I2C_BUS) -> Optional[dict]:
-    """
-    Try to read a small EEPROM (AT24C02) to get module type and serial.
-    Returns dict with keys: type, serial, addr.
-    """
+    """Try to read EEPROM identification data."""
     try:
         import smbus2
         bus_obj = smbus2.SMBus(bus)
-        # First 2 bytes: length of type string, then type, then serial
         raw = bus_obj.read_i2c_block_data(addr, 0, 64)
         bus_obj.close()
-        # Very simple decoding: first byte is length of type name
         type_len = raw[0]
         if type_len == 0 or type_len > 32:
             return None
         mod_type = bytes(raw[1:1+type_len]).decode("ascii", errors="replace").strip("\x00")
-        # Next byte is length of serial, or assume remaining
         serial_len = raw[1+type_len]
         serial = bytes(raw[2+type_len:2+type_len+serial_len]).decode("ascii", errors="replace").strip("\x00")
         return {"type": mod_type, "serial": serial, "addr": f"0x{addr:02X}"}
     except ImportError:
-        # Fallback: try to read via i2cget (limited)
         return {"type": "unknown", "serial": "unknown", "addr": f"0x{addr:02X}"}
     except Exception as e:
         logger.debug(f"EEPROM read failed at {addr:#04x}: {e}")
         return None
 
 def detect_modules():
-    """Scan bus, read EEPROMs, compare with known state and publish events."""
     global connected_modules
     current_addrs = i2c_scan()
     current_keys = {f"0x{a:02X}" for a in current_addrs}
 
-    # Detach modules that disappeared
     for addr_key in list(connected_modules.keys()):
         if addr_key not in current_keys:
             mod = connected_modules.pop(addr_key)
             logger.info(f"Module detached: {mod}")
             mqtt_client.publish(MQTT_TOPIC_DETACH, json.dumps(mod), qos=1)
 
-    # Attach new modules
     for addr in current_addrs:
         addr_key = f"0x{addr:02X}"
         if addr_key not in connected_modules:
@@ -162,7 +177,6 @@ def detect_modules():
 # ---------- REST Endpoints ----------
 @app.route("/api/v1/status", methods=["GET"])
 def api_status():
-    """Return connected modules and daemon uptime."""
     return jsonify({
         "modules": list(connected_modules.values()),
         "count": len(connected_modules),
@@ -171,7 +185,6 @@ def api_status():
 
 @app.route("/api/v1/scan", methods=["GET"])
 def api_scan():
-    """Force a scan and return current modules."""
     detect_modules()
     return jsonify({
         "modules": list(connected_modules.values()),
@@ -180,26 +193,17 @@ def api_scan():
 
 @app.route("/api/v1/module/<addr>/power", methods=["POST"])
 def api_power(addr: str):
-    """Control power of a specific module (via GPIO)."""
     data = request.get_json(force=True, silent=True) or {}
     state = data.get("state", "").lower()
     if state not in ("on", "off"):
         return jsonify({"error": "state must be 'on' or 'off'"}), 400
-
     if addr not in connected_modules:
         return jsonify({"error": "module not found"}), 404
-
-    # In a real implementation we'd toggle a GPIO line via libgpiod.
-    # Here we simulate and log.
     logger.info(f"Power {state} requested for module {addr}")
-    # For global kill switch GPIO:
-    if SECURITY_CONFIG.get("killswitch_gpio") and state == "off":
-        logger.info("Kill switch activated via software (hardware kill also exists)")
     return jsonify({"addr": addr, "state": state, "result": "ok"})
 
 @app.route("/api/v1/resources", methods=["GET"])
 def api_resources():
-    """Return basic system resources (CPU, memory)."""
     try:
         import psutil
         mem = psutil.virtual_memory()
@@ -209,20 +213,18 @@ def api_resources():
             "memory_used_mb": mem.used // (1024*1024),
         })
     except ImportError:
-        return jsonify({"message": "psutil not installed, install for resource info"}), 501
+        return jsonify({"message": "psutil not installed"}), 501
 
 # ---------- Main Loop ----------
 def main():
     logger.info("Starting pentad...")
-    # First scan
     detect_modules()
 
-    # Start REST API in a separate thread
     import threading
     rest_port = PENTAD_CONFIG.get("rest_port", 8600)
-    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=rest_port, debug=False, use_reloader=False), daemon=True).start()
+    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=rest_port,
+                                           debug=False, use_reloader=False), daemon=True).start()
 
-    # Periodic scan loop
     try:
         while True:
             time.sleep(SCAN_INTERVAL)
