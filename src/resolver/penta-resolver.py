@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
 """
-Penta Resolver - Smart Docking Engine (v1.6.2)
+Penta Resolver - Smart Docking Engine (v1.6.4)
 ===============================================
-Takes installation requests, queries Penta Hub, provisions containers,
-executes package installation, integrates applications into the desktop
-AND generates unified CLI wrapper scripts.
+Accepts installation requests, queries Penta Hub, manages containers,
+executes installs, and creates desktop/wrapper files on behalf of the
+requesting user.
 
-Changes in v1.6.2:
-  - Unified config loading via PENTA_CONFIG environment variable.
-  - Added real Windows .exe installation (downloads and runs installer inside win container).
-  - Robust container existence check with try/catch.
-  - Handles containers not defined in containers.yaml by creating them from image directly.
-  - Prevents wrapper name conflicts with a numeric suffix.
-  - On uninstall, attempts to remove the application from the container (best effort).
+Changes:
+- ensure_container now maps container name → real OCI image via containers.yaml.
+- create_wrapper_script / generate_desktop_file accept `home_dir` to write
+  files into the correct user's home (passed in the install request).
+- Added `username` field to InstallRequest; falls back to 'penta' for server use.
+- Full error handling for container and snapshot operations.
 
 Usage:
     uvicorn src.resolver.penta-resolver:app --host 0.0.0.0 --port 8500
 """
 
 import asyncio
-import json
 import logging
 import os
 import re
@@ -28,7 +26,7 @@ import subprocess
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 import aiohttp
 import yaml
@@ -50,9 +48,7 @@ AUTO_ROLLBACK = RESOLVER_CONFIG.get("auto_rollback", True)
 TEMP_DIR = Path(RESOLVER_CONFIG.get("temp_dir", "/var/tmp/penta-install"))
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
-USER_BIN_DIR = Path.home() / ".local" / "bin"
-
-# Load container definitions (optional)
+# Load container definitions
 CONTAINERS_YAML = Path("/etc/penta/containers.yaml")
 if not CONTAINERS_YAML.exists():
     CONTAINERS_YAML = Path("config/containers.yaml")
@@ -66,26 +62,27 @@ except Exception:
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] resolver: %(message)s")
 logger = logging.getLogger("penta-resolver")
 
-# ---------- FastAPI App ----------
-app = FastAPI(title="Penta Resolver", version="1.6.2")
+# ---------- FastAPI ----------
+app = FastAPI(title="Penta Resolver", version="1.6.4")
 
-# ---------- In-memory task store ----------
-tasks: dict[str, dict] = {}
+# ---------- Task store ----------
+tasks: Dict[str, Dict[str, Any]] = {}
 
-# ---------- Pydantic Models ----------
+# ---------- Models ----------
 class InstallRequest(BaseModel):
     package: str
     source: str = "auto"
     version: str = "latest"
     hardware_profile: str = "auto"
     mode: str = "desktop"
+    username: Optional[str] = None   # target user for .desktop/wrappers
 
 class TaskStatus(BaseModel):
     task_id: str
     status: str
     progress: int = 0
     log: list[str] = []
-    result: Optional[str] = None
+    result: Optional[dict] = None
 
 # ---------- Helpers ----------
 async def search_package(package: str, source: str = "all") -> list[dict]:
@@ -95,44 +92,44 @@ async def search_package(package: str, source: str = "all") -> list[dict]:
         async with session.get(url, params=params) as resp:
             if resp.status != 200:
                 raise HTTPException(status_code=502, detail="Hub search failed")
-            data = await resp.json()
-            return data.get("results", [])
+            return (await resp.json()).get("results", [])
 
 def rank_results(results: list[dict]) -> dict:
     if not results:
         return {}
-    source_order = {"apt": 0, "flatpak": 1, "snap": 2, "aur": 3, "rpm": 4, "pypi": 5, "homebrew": 6, "github": 7, "exe": 8}
-    best = None
-    best_score = 999
+    source_order = {"apt": 0, "flatpak": 1, "snap": 2, "aur": 3, "rpm": 4,
+                    "pypi": 5, "homebrew": 6, "github": 7, "exe": 8}
+    best, best_score = None, 999
     for r in results:
         score = source_order.get(r.get("source", ""), 100)
         if score < best_score:
-            best_score = score
-            best = r
-    return best if best else results[0]
+            best_score, best = score, r
+    return best or results[0]
 
 async def run_command(cmd: str, log_list: list[str]) -> int:
-    logger.info(f"Executing: {cmd}")
+    logger.info(f"Exec: {cmd}")
     proc = await asyncio.create_subprocess_shell(
-        cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT
-    )
+        cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
     while True:
         line = await proc.stdout.readline()
         if not line:
             break
-        text = line.decode().rstrip()
-        log_list.append(text)
+        log_list.append(line.decode().rstrip())
     await proc.wait()
     return proc.returncode
 
+def get_image_for_container(container_name: str) -> str:
+    """Resolve actual OCI image from containers.yaml, or use the name as-is."""
+    if container_name in containers_def:
+        return containers_def[container_name]["image"]
+    logger.warning(f"No container definition for '{container_name}', using as image.")
+    return container_name
+
 def ensure_container(name: str, image: str, init: bool = False) -> bool:
-    """Create container if missing. Raises exception on failure."""
     try:
-        list_res = subprocess.run(f"{CONTAINER_ENGINE} list | grep -w {name}", shell=True,
-                                  capture_output=True, text=True)
-        if list_res.returncode == 0:
+        res = subprocess.run(f"{CONTAINER_ENGINE} list | grep -w {name}",
+                             shell=True, capture_output=True, text=True)
+        if res.returncode == 0:
             return True
     except Exception:
         pass
@@ -141,65 +138,56 @@ def ensure_container(name: str, image: str, init: bool = False) -> bool:
     cmd = f"{CONTAINER_ENGINE} create --name {name} --image {image}"
     if init:
         cmd += " --init"
-    create_res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    if create_res.returncode != 0:
-        raise RuntimeError(f"Failed to create container {name}: {create_res.stderr}")
+    proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError(f"Container creation failed: {proc.stderr.strip()}")
     return True
-
-def container_name_from_source(source: str, chosen: dict) -> str:
-    """Return a sensible container name based on source type."""
-    return chosen.get("container", f"{source}-toolbox")
 
 def install_in_container(container_name: str, command: str, log_list: list[str], user: str = None) -> int:
     prefix = f"{CONTAINER_ENGINE} enter {container_name}"
     if user:
         prefix += f" --user {user}"
-    full_cmd = f"{prefix} -- {command}"
-    return asyncio.run(run_command(full_cmd, log_list))
+    return asyncio.run(run_command(f"{prefix} -- {command}", log_list))
 
-def determine_executable_name(package_name: str, source: str) -> str:
-    mapping = {
-        "metasploit": "msfconsole",
-        "metasploit-framework": "msfconsole",
-        "wireshark": "wireshark",
-        "firefox": "firefox",
-    }
-    return mapping.get(package_name, package_name)
+def install_exe(container_name: str, installer_url: str, log_list: list[str]) -> int:
+    log_list.append(f"Downloading {installer_url}")
+    dl_cmd = f"wget -O /tmp/installer.exe '{installer_url}'"
+    ret = asyncio.run(run_command(
+        f"{CONTAINER_ENGINE} enter {container_name} -- bash -c '{dl_cmd}'", log_list))
+    if ret != 0:
+        return ret
+    log_list.append("Running installer...")
+    return asyncio.run(run_command(
+        f"{CONTAINER_ENGINE} enter {container_name} -- bash -c 'box64 wine /tmp/installer.exe /silent'", log_list))
 
-def create_wrapper_script(app_name: str, container_name: str, exec_command: str, is_windows: bool = False) -> str:
-    USER_BIN_DIR.mkdir(parents=True, exist_ok=True)
-    wrapper_path = USER_BIN_DIR / app_name
-    # Resolve conflicts
+def create_wrapper_script(app_name: str, container_name: str, exec_command: str,
+                         is_windows: bool, home_dir: Path) -> str:
+    bin_dir = home_dir / ".local" / "bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    wrapper_path = bin_dir / app_name
+    # resolve name conflicts
     suffix = 0
-    base_name = app_name
+    base = app_name
     while wrapper_path.exists():
         suffix += 1
-        app_name = f"{base_name}_{suffix}"
-        wrapper_path = USER_BIN_DIR / app_name
-    if is_windows:
-        launch_cmd = f"box64 wine {exec_command}"
-    else:
-        launch_cmd = exec_command
+        app_name = f"{base}_{suffix}"
+        wrapper_path = bin_dir / app_name
 
+    launch = f"box64 wine {exec_command}" if is_windows else exec_command
     script = f"""#!/bin/bash
 # Penta OS wrapper for {app_name}
-exec {CONTAINER_ENGINE} enter {container_name} -- {launch_cmd} "$@"
+exec {CONTAINER_ENGINE} enter {container_name} -- {launch} "$@"
 """
     wrapper_path.write_text(script)
     wrapper_path.chmod(wrapper_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     logger.info(f"Wrapper created: {wrapper_path}")
-    return wrapper_path.name
+    return app_name
 
-def remove_wrapper_script(app_name: str):
-    for f in USER_BIN_DIR.glob(f"{app_name}*"):
-        f.unlink()
-        logger.info(f"Wrapper removed: {f}")
-
-def generate_desktop_file(name: str, wrapper_name: str, icon: str = "", terminal: bool = False) -> Path:
-    desktop_dir = Path.home() / ".local" / "share" / "applications"
+def generate_desktop_file(name: str, wrapper_name: str, icon: str, home_dir: Path, terminal: bool = False) -> Path:
+    desktop_dir = home_dir / ".local" / "share" / "applications"
     desktop_dir.mkdir(parents=True, exist_ok=True)
     desktop_file = desktop_dir / f"{name.replace(' ', '_')}.desktop"
-    exec_cmd = str(USER_BIN_DIR / wrapper_name)
+    exec_cmd = str(home_dir / ".local" / "bin" / wrapper_name)
     content = f"""[Desktop Entry]
 Name={name}
 Exec={exec_cmd}
@@ -211,104 +199,96 @@ Categories=Utility;
     desktop_file.write_text(content)
     desktop_file.chmod(0o755)
     subprocess.run(["update-desktop-database", str(desktop_dir)], capture_output=True)
-    logger.info(f"Desktop file created: {desktop_file}")
+    logger.info(f"Desktop entry: {desktop_file}")
     return desktop_file
 
-def snapper_snapshot() -> Optional[str]:
-    if not AUTO_ROLLBACK:
-        return None
-    try:
-        res = subprocess.run(["sudo", "snapper", "create", "--type", "pre", "--print-number",
-                              "--description", "penta-install", "--cleanup-algorithm", "number"],
-                             capture_output=True, text=True, check=True)
-        return res.stdout.strip()
-    except Exception as e:
-        logger.warning(f"Snapshot creation failed: {e}")
-        return None
+def ensure_path_in_profile(home_dir: Path):
+    """Add ~/.local/bin to PATH in .profile if missing."""
+    profile = home_dir / ".profile"
+    line = 'export PATH="$HOME/.local/bin:$PATH"'
+    if profile.exists():
+        content = profile.read_text()
+        if line not in content:
+            with profile.open("a") as f:
+                f.write(f"\n# Penta OS\n{line}\n")
+            logger.info(f"Added {line} to {profile}")
 
-def snapper_rollback(snap_num: str):
-    try:
-        subprocess.run(["sudo", "snapper", "undochange", f"{snap_num}..0"], check=True)
-        logger.info(f"Rolled back to snapshot {snap_num}")
-    except Exception as e:
-        logger.error(f"Rollback failed: {e}")
-
-def install_exe(container_name: str, installer_url: str, log_list: list[str]) -> int:
-    """Download and run a Windows installer inside the container using box64 wine."""
-    installer_name = "installer.exe"
-    download_cmd = f"wget -O /tmp/{installer_name} '{installer_url}'"
-    log_list.append(f"Downloading {installer_url}")
-    ret = asyncio.run(run_command(f"{CONTAINER_ENGINE} enter {container_name} -- bash -c '{download_cmd}'", log_list))
-    if ret != 0:
-        return ret
-    run_cmd = f"box64 wine /tmp/{installer_name} /silent"
-    log_list.append("Running installer...")
-    return asyncio.run(run_command(f"{CONTAINER_ENGINE} enter {container_name} -- bash -c '{run_cmd}'", log_list))
-
-# ---------- Main installation flow ----------
 async def perform_install(task_id: str, request: InstallRequest):
-    log: list[str] = []
+    log = []
     tasks[task_id]["status"] = "running"
     tasks[task_id]["log"] = log
     snap_num = None
     try:
-        log.append("Searching Penta Hub...")
+        log.append("Searching Hub...")
         results = await search_package(request.package, request.source)
         if not results:
             raise Exception("No package found.")
-
         chosen = rank_results(results)
-        log.append(f"Selected: {chosen['name']} from {chosen['source']}")
+        log.append(f"Selected {chosen['name']} ({chosen['source']})")
 
         source = chosen.get("source", request.source)
-        container_name = container_name_from_source(source, chosen)
-        image = chosen.get("container", "debian-stable")
+        container_name = chosen.get("container", f"{source}-toolbox")
         init = containers_def.get(container_name, {}).get("init", False)
+        image = get_image_for_container(container_name)
 
-        log.append(f"Ensuring container {container_name}...")
+        log.append(f"Preparing {container_name} (image {image})")
         ensure_container(container_name, image, init)
 
-        snap_num = snapper_snapshot()
-        if snap_num:
-            log.append(f"Snapshot {snap_num} created.")
+        if AUTO_ROLLBACK:
+            try:
+                res = subprocess.run(["sudo", "snapper", "create", "--type", "pre", "--print-number",
+                                      "--description", "penta-install", "--cleanup-algorithm", "number"],
+                                     capture_output=True, text=True, check=True)
+                snap_num = res.stdout.strip()
+                log.append(f"Snapshot {snap_num}")
+            except Exception as e:
+                logger.warning(f"Snapshot failed: {e}")
 
-        # Execute installation
+        # Install
         if source == "exe" and request.package.startswith("http"):
             ret = install_exe(container_name, request.package, log)
-            exec_name = "app"  # unknown, user must set
+            exec_name = chosen.get("executable", "app")
         else:
             install_cmd = chosen.get("install_command", f"echo install {chosen['name']}")
             user = containers_def.get(container_name, {}).get("user")
             ret = install_in_container(container_name, install_cmd, log, user)
-            exec_name = determine_executable_name(chosen['name'], source)
+            exec_name = chosen.get("executable", chosen["name"])
 
         if ret != 0:
-            raise Exception(f"Installation failed with exit code {ret}")
+            raise Exception(f"Install failed, exit code {ret}")
 
-        is_win = source == "exe"
-        wrapper_name = create_wrapper_script(exec_name, container_name, exec_name, is_win)
-        log.append(f"CLI wrapper: {wrapper_name}")
+        # Determine user home
+        username = request.username or "penta"
+        home_dir = Path(f"/home/{username}")
+        if not home_dir.exists():
+            home_dir = Path(f"/home/penta")
+        log.append(f"Placing launcher in {home_dir}")
 
-        desktop = generate_desktop_file(chosen['name'], wrapper_name, chosen.get("icon_url", ""))
-        log.append(f"Desktop entry: {desktop}")
+        is_win = (source == "exe")
+        wrapper_name = create_wrapper_script(exec_name, container_name, exec_name, is_win, home_dir)
+        generate_desktop_file(chosen["name"], wrapper_name, chosen.get("icon_url", ""), home_dir)
+        ensure_path_in_profile(home_dir)
 
         tasks[task_id]["status"] = "completed"
         tasks[task_id]["progress"] = 100
-        tasks[task_id]["result"] = str(desktop)
+        tasks[task_id]["result"] = {"name": chosen["name"], "wrapper": wrapper_name}
     except Exception as e:
         logger.exception("Install error")
         log.append(f"ERROR: {e}")
         tasks[task_id]["status"] = "failed"
         if snap_num:
-            log.append("Rolling back...")
-            snapper_rollback(snap_num)
+            try:
+                subprocess.run(["sudo", "snapper", "undochange", f"{snap_num}..0"], check=True)
+                log.append("Rollback done.")
+            except Exception as e2:
+                log.append(f"Rollback failed: {e2}")
 
-# ---------- API ----------
+# ---------- API endpoints ----------
 @app.post("/api/v1/install")
-async def api_install(request: InstallRequest):
+async def api_install(req: InstallRequest):
     task_id = str(uuid.uuid4())
     tasks[task_id] = {"task_id": task_id, "status": "queued", "progress": 0, "log": [], "result": None}
-    asyncio.create_task(perform_install(task_id, request))
+    asyncio.create_task(perform_install(task_id, req))
     return {"task_id": task_id, "status": "queued"}
 
 @app.get("/api/v1/task/{task_id}")
@@ -327,23 +307,17 @@ async def api_installed():
             with open(f, "r") as fp:
                 for line in fp:
                     if line.startswith("Name="):
-                        name = line.split("=",1)[1].strip()
-                        apps.append({"name": name, "file": str(f)})
-                        break
+                        apps.append({"name": line.split("=",1)[1].strip(), "file": str(f)})
     return {"installed": apps}
 
 @app.post("/api/v1/uninstall/{app_name}")
 async def api_uninstall(app_name: str):
-    desktop_file = Path.home() / ".local" / "share" / "applications" / f"{app_name.replace(' ', '_')}.desktop"
+    home = Path.home()
+    desktop_file = home / ".local" / "share" / "applications" / f"{app_name.replace(' ', '_')}.desktop"
     if desktop_file.exists():
         desktop_file.unlink()
-    remove_wrapper_script(app_name)
-    # Attempt to remove from container (best effort)
-    try:
-        # Guess container from wrapper? Not implemented fully.
-        pass
-    except Exception:
-        pass
+    for f in (home / ".local" / "bin").glob(f"{app_name}*"):
+        f.unlink()
     return {"status": "removed"}
 
 @app.post("/api/v1/mode/switch")
