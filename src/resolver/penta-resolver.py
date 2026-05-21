@@ -1,11 +1,18 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3#!/usr/bin/env python3
 """
-Penta Resolver - Smart Docking Engine
-=====================================
+Penta Resolver - Smart Docking Engine (v1.6)
+=============================================
 Takes installation requests, queries Penta Hub, provisions containers,
-executes package installation, integrates applications into the desktop.
+executes package installation, integrates applications into the desktop
+AND generates unified CLI wrapper scripts so any installed program
+can be called directly from the host terminal.
 
-Provides a REST API for CLI/GUI and also runs background tasks.
+New in v1.6:
+  - Creates wrapper scripts in ~/.local/bin for every installed app.
+  - Wrapper format: `distrobox enter <container> -- <command> "$@"`.
+  - Supports Windows apps via `box64 wine` prefix.
+  - Removes wrappers on uninstall.
+  - Ensures ~/.local/bin is in PATH (warns if not).
 
 Usage:
     uvicorn src.resolver.penta-resolver:app --host 0.0.0.0 --port 8500
@@ -16,6 +23,7 @@ import json
 import logging
 import os
 import shlex
+import stat
 import subprocess
 import tempfile
 import uuid
@@ -43,6 +51,9 @@ AUTO_ROLLBACK = RESOLVER_CONFIG.get("auto_rollback", True)
 TEMP_DIR = Path(RESOLVER_CONFIG.get("temp_dir", "/var/tmp/penta-install"))
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
+# User's local bin directory for wrappers
+USER_BIN_DIR = Path.home() / ".local" / "bin"
+
 # Load container definitions
 CONTAINERS_YAML = Path("/etc/penta/containers.yaml")
 if not CONTAINERS_YAML.exists():
@@ -55,7 +66,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] reso
 logger = logging.getLogger("penta-resolver")
 
 # ---------- FastAPI App ----------
-app = FastAPI(title="Penta Resolver", version="1.5.0")
+app = FastAPI(title="Penta Resolver", version="1.6.0")
 
 # ---------- In-memory task store ----------
 tasks: dict[str, dict] = {}
@@ -63,21 +74,20 @@ tasks: dict[str, dict] = {}
 # ---------- Pydantic Models ----------
 class InstallRequest(BaseModel):
     package: str
-    source: str = "auto"          # auto, apt, aur, pypi, homebrew, github, appimage, exe
+    source: str = "auto"
     version: str = "latest"
     hardware_profile: str = "auto"
     mode: str = "desktop"
 
 class TaskStatus(BaseModel):
     task_id: str
-    status: str                  # queued, running, completed, failed
+    status: str
     progress: int = 0
     log: list[str] = []
     result: Optional[str] = None
 
 # ---------- Helper Functions ----------
 async def search_package(package: str, source: str = "all") -> list[dict]:
-    """Query Penta Hub for matching packages."""
     async with aiohttp.ClientSession() as session:
         url = f"{HUB_ENDPOINT}/api/v1/search"
         params = {"q": package, "source": source, "limit": 10}
@@ -88,15 +98,8 @@ async def search_package(package: str, source: str = "all") -> list[dict]:
             return data.get("results", [])
 
 def rank_results(results: list[dict]) -> dict:
-    """
-    Choose the best candidate based on:
-    - Source preference (native > AUR > PyPI > Homebrew > Windows)
-    - Version freshness (higher version string => better)
-    Returns the best match or empty dict.
-    """
     if not results:
         return {}
-    # Simple ranking: prefer apt (native Debian), then aur, then pypi, etc.
     source_order = {"apt": 0, "flatpak": 1, "snap": 2, "aur": 3, "rpm": 4, "pypi": 5, "homebrew": 6, "github": 7, "exe": 8}
     best = None
     best_score = 999
@@ -108,7 +111,6 @@ def rank_results(results: list[dict]) -> dict:
     return best if best else results[0]
 
 async def run_command(cmd: str, log_list: list[str]) -> int:
-    """Run a shell command asynchronously, appending output to log_list."""
     logger.info(f"Executing: {cmd}")
     proc = await asyncio.create_subprocess_shell(
         cmd,
@@ -125,11 +127,6 @@ async def run_command(cmd: str, log_list: list[str]) -> int:
     return proc.returncode
 
 def ensure_container(name: str, image: str, init: bool = False) -> bool:
-    """
-    Ensure a Distrobox container exists. If not, create it.
-    Returns True if ready.
-    """
-    # Check if container exists
     list_cmd = f"{CONTAINER_ENGINE} list | grep -w {name}"
     result = subprocess.run(list_cmd, shell=True, capture_output=True)
     if result.returncode != 0:
@@ -141,21 +138,88 @@ def ensure_container(name: str, image: str, init: bool = False) -> bool:
     return True
 
 def install_in_container(container_name: str, command: str, log_list: list[str], user: str = None) -> int:
-    """Execute an install command inside a container."""
     prefix = f"{CONTAINER_ENGINE} enter {container_name}"
     if user:
         prefix += f" --user {user}"
     full_cmd = f"{prefix} -- {command}"
     return asyncio.run(run_command(full_cmd, log_list))
 
+def determine_executable_name(package_name: str, source: str) -> str:
+    """
+    Heuristically guess the executable name from the package name.
+    For most packages it's the same; some known mappings can be added.
+    """
+    # Simple mapping for common cases
+    mapping = {
+        "metasploit": "msfconsole",
+        "metasploit-framework": "msfconsole",
+        "wireshark": "wireshark",
+        "firefox": "firefox",
+    }
+    return mapping.get(package_name, package_name)
+
+def create_wrapper_script(app_name: str, container_name: str, exec_command: str, is_windows: bool = False):
+    """
+    Create an executable script in ~/.local/bin that launches the app in its container.
+    """
+    USER_BIN_DIR.mkdir(parents=True, exist_ok=True)
+    wrapper_path = USER_BIN_DIR / app_name
+
+    # If the wrapper already exists and belongs to another container, add suffix
+    if wrapper_path.exists():
+        logger.warning(f"Wrapper {wrapper_path} already exists; appending .penta")
+        wrapper_path = USER_BIN_DIR / f"{app_name}.penta"
+
+    if is_windows:
+        launch_cmd = f"box64 wine {exec_command}"
+    else:
+        launch_cmd = exec_command
+
+    script_content = f"""#!/bin/bash
+# Penta OS wrapper for {app_name}
+# Runs inside container: {container_name}
+exec {CONTAINER_ENGINE} enter {container_name} -- {launch_cmd} "$@"
+"""
+    wrapper_path.write_text(script_content)
+    wrapper_path.chmod(wrapper_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    logger.info(f"Wrapper created: {wrapper_path}")
+
+def remove_wrapper_script(app_name: str):
+    """Remove the wrapper script if it exists."""
+    wrapper_path = USER_BIN_DIR / app_name
+    if wrapper_path.exists():
+        wrapper_path.unlink()
+        logger.info(f"Wrapper removed: {wrapper_path}")
+        return True
+    # Also try with .penta suffix
+    wrapper_path_alt = USER_BIN_DIR / f"{app_name}.penta"
+    if wrapper_path_alt.exists():
+        wrapper_path_alt.unlink()
+        return True
+    return False
+
+def ensure_path():
+    """
+    Warn if ~/.local/bin is not in PATH.
+    Could also add it to ~/.bashrc automatically.
+    """
+    bin_dir_str = str(USER_BIN_DIR)
+    current_path = os.environ.get("PATH", "")
+    if bin_dir_str not in current_path:
+        logger.warning(f"{bin_dir_str} is not in your PATH. Add it to your shell profile to use global commands.")
+        # In future, could append to ~/.profile automatically.
+        return False
+    return True
+
 def generate_desktop_file(name: str, exec_command: str, icon: str = "", terminal: bool = False) -> Path:
-    """Create a .desktop file for the installed application."""
     desktop_dir = Path.home() / ".local" / "share" / "applications"
     desktop_dir.mkdir(parents=True, exist_ok=True)
     desktop_file = desktop_dir / f"{name.replace(' ', '_')}.desktop"
+    # Use wrapper script instead of direct distrobox call
+    wrapper_cmd = str(USER_BIN_DIR / name)
     content = f"""[Desktop Entry]
 Name={name}
-Exec={exec_command}
+Exec={wrapper_cmd}
 Icon={icon}
 Type=Application
 Terminal={'true' if terminal else 'false'}
@@ -163,28 +227,23 @@ Categories=Utility;
 """
     desktop_file.write_text(content)
     desktop_file.chmod(0o755)
-    # Update desktop database (if available)
     subprocess.run(["update-desktop-database", str(desktop_dir)], capture_output=True)
     logger.info(f"Desktop file created: {desktop_file}")
     return desktop_file
 
 def snapper_snapshot() -> Optional[str]:
-    """Create a pre-install snapshot with Snapper if available."""
     if not AUTO_ROLLBACK:
         return None
     try:
         result = subprocess.run(["sudo", "snapper", "create", "--type", "pre", "--print-number",
                                 "--description", "penta-install", "--cleanup-algorithm", "number"],
                                capture_output=True, text=True, check=True)
-        snap_num = result.stdout.strip()
-        logger.info(f"Pre-install snapshot {snap_num} created")
-        return snap_num
+        return result.stdout.strip()
     except Exception as e:
-        logger.warning(f"Snapshot creation failed (non‑critical): {e}")
+        logger.warning(f"Snapshot creation failed: {e}")
         return None
 
 def snapper_rollback(snap_num: str):
-    """Rollback to the given snapshot number."""
     try:
         subprocess.run(["sudo", "snapper", "undochange", f"{snap_num}..0"], check=True)
         logger.info(f"Rolled back to snapshot {snap_num}")
@@ -193,33 +252,32 @@ def snapper_rollback(snap_num: str):
 
 # ---------- Installation Flow ----------
 async def perform_install(task_id: str, request: InstallRequest):
-    """Main installation task, executed asynchronously."""
     log: list[str] = []
     tasks[task_id]["status"] = "running"
     tasks[task_id]["log"] = log
+    snap_num = None
     try:
         # 1. Search Hub
         log.append("Searching Penta Hub...")
         results = await search_package(request.package, request.source)
         if not results:
             raise Exception("No package found.")
-        # 2. Rank and choose
         chosen = rank_results(results)
         log.append(f"Selected: {chosen['name']} from {chosen['source']} (version {chosen.get('version','unknown')})")
 
-        # 3. Ensure container exists
+        # 2. Ensure container exists
         container_image = chosen.get("container", "debian-stable")
         container_name = f"{chosen['source']}-toolbox"
         init = containers_def.get(container_name, {}).get("init", False)
         log.append(f"Ensuring container {container_name} exists...")
         ensure_container(container_name, container_image, init)
 
-        # 4. Snapshot before install
+        # 3. Snapshot before install
         snap_num = snapper_snapshot()
         if snap_num:
             log.append(f"Snapshot {snap_num} created.")
 
-        # 5. Execute install command
+        # 4. Execute install command
         install_cmd = chosen.get("install_command", f"echo install {chosen['name']}")
         user = containers_def.get(container_name, {}).get("user")
         log.append(f"Running: {install_cmd}")
@@ -227,13 +285,19 @@ async def perform_install(task_id: str, request: InstallRequest):
         if ret != 0:
             raise Exception(f"Installation failed with exit code {ret}")
 
-        # 6. Generate desktop file
-        # Build a launch command: distrobox enter <container> -- <program>
-        # We need a sensible executable name; heuristic: the package name.
-        exec_command = f"{CONTAINER_ENGINE} enter {container_name} -- {chosen['name']}"
-        # For some packages, we might need a different binary; we take the package name as default.
+        # 5. Determine executable name and create wrapper
+        app_name = determine_executable_name(chosen['name'], chosen['source'])
+        is_windows = chosen['source'] == 'exe' or 'wine' in install_cmd.lower()
+        exec_command = app_name  # for now, assume the app can be launched by its name inside the container
+        create_wrapper_script(app_name, container_name, exec_command, is_windows)
+        log.append(f"CLI wrapper created: {USER_BIN_DIR / app_name}")
+
+        # 6. Generate desktop file (using wrapper)
         desktop_file = generate_desktop_file(chosen['name'], exec_command, chosen.get("icon_url", ""))
         log.append(f"Desktop shortcut created: {desktop_file}")
+
+        # Ensure PATH
+        ensure_path()
 
         tasks[task_id]["status"] = "completed"
         tasks[task_id]["progress"] = 100
@@ -242,8 +306,6 @@ async def perform_install(task_id: str, request: InstallRequest):
         logger.exception("Installation error")
         log.append(f"ERROR: {e}")
         tasks[task_id]["status"] = "failed"
-        tasks[task_id]["progress"] = 0
-        # Attempt rollback if snapshot exists
         if snap_num:
             log.append("Rolling back...")
             snapper_rollback(snap_num)
@@ -251,7 +313,6 @@ async def perform_install(task_id: str, request: InstallRequest):
 # ---------- API Endpoints ----------
 @app.post("/api/v1/install")
 async def api_install(request: InstallRequest):
-    """Start an installation task."""
     task_id = str(uuid.uuid4())
     tasks[task_id] = {
         "task_id": task_id,
@@ -260,13 +321,11 @@ async def api_install(request: InstallRequest):
         "log": [],
         "result": None
     }
-    # Launch the install in background
     asyncio.create_task(perform_install(task_id, request))
     return {"task_id": task_id, "status": "queued"}
 
 @app.get("/api/v1/task/{task_id}")
 async def api_task_status(task_id: str):
-    """Get status and logs of an installation task."""
     task = tasks.get(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -274,12 +333,10 @@ async def api_task_status(task_id: str):
 
 @app.get("/api/v1/installed")
 async def api_installed():
-    """List installed applications (those with .desktop files in user's local dir)."""
     desktop_dir = Path.home() / ".local" / "share" / "applications"
     apps = []
     if desktop_dir.exists():
         for f in desktop_dir.glob("*.desktop"):
-            # Parse name from file
             with open(f, "r") as fp:
                 for line in fp:
                     if line.startswith("Name="):
@@ -290,18 +347,19 @@ async def api_installed():
 
 @app.post("/api/v1/uninstall/{app_name}")
 async def api_uninstall(app_name: str):
-    """Remove a desktop shortcut and (optionally) the container package. Minimal implementation."""
+    # Remove desktop file
     desktop_file = Path.home() / ".local" / "share" / "applications" / f"{app_name.replace(' ', '_')}.desktop"
     if desktop_file.exists():
         desktop_file.unlink()
-        return {"status": "removed", "file": str(desktop_file)}
+    # Remove wrapper script
+    removed = remove_wrapper_script(app_name)
+    if desktop_file.exists() or removed:
+        return {"status": "removed"}
     raise HTTPException(status_code=404, detail="Application not found")
 
 @app.post("/api/v1/mode/switch")
 async def api_mode_switch(mode: str = Query("desktop")):
-    """Switch system mode (stub)."""
     logger.info(f"Mode switch requested: {mode}")
-    # In real implementation, systemctl isolate penta-<mode>.target
     return {"status": "switched", "mode": mode}
 
 @app.get("/api/v1/health")
