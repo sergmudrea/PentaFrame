@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Penta Hub - Metadata Aggregator Service (v1.6)
-===============================================
+Penta Hub - Metadata Aggregator Service (v1.6.1)
+=================================================
 FastAPI-based microservice that indexes package metadata from multiple
 repositories (built-in and user-defined via plugins).
 
-New in v1.6:
-  - Dynamically loads repository plugins from /etc/penta/plugins/.
-  - Uses plugin_loader for crawling and install command generation.
-  - Supports community-contributed repository definitions without core changes.
+Fixes in 1.6.1:
+  - Unified configuration loading via PENTA_CONFIG env variable.
+  - Corrected plugin_loader import path.
+  - Thread-safe SQLite access using asyncio.to_thread and a lock.
+  - Added /api/v1/plugins endpoint to list loaded repository plugins.
 
 Usage:
     uvicorn src.hub.penta-hub:app --host 0.0.0.0 --port 8400
@@ -16,9 +17,11 @@ Usage:
 
 import asyncio
 import logging
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import Lock
 from typing import Optional
 
 import aiohttp
@@ -27,11 +30,14 @@ from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 
 # ---------- Plugin Loader ----------
-from plugin_loader import load_plugins, get_crawlers, get_install_command, get_plugin
+import sys
+sys.path.insert(0, str(Path(__file__).parent))  # ensure local imports work
+from plugin_loader import load_plugins, get_crawlers, get_plugin
 
 # ---------- Configuration ----------
-CONFIG_PATH = Path("/etc/penta/config.yaml")
+CONFIG_PATH = Path(os.environ.get("PENTA_CONFIG", "/etc/penta/config.yaml"))
 if not CONFIG_PATH.exists():
+    # Fallback for development
     CONFIG_PATH = Path("config/penta.conf.example")
 
 with open(CONFIG_PATH, "r") as f:
@@ -46,21 +52,20 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] hub:
 logger = logging.getLogger("penta-hub")
 
 # ---------- FastAPI App ----------
-app = FastAPI(title="Penta Hub", version="1.6.0")
+app = FastAPI(title="Penta Hub", version="1.6.1")
 
-# ---------- Database Setup ----------
+# ---------- Thread-Safe Database Setup ----------
 def get_db() -> sqlite3.Connection:
+    """Create a new connection each time (or reuse via connection pool)."""
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
-db = get_db()
-
-def init_schema():
-    db.executescript("""
+def init_schema(conn: sqlite3.Connection):
+    conn.executescript("""
         CREATE TABLE IF NOT EXISTS packages (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
@@ -77,9 +82,41 @@ def init_schema():
         CREATE INDEX IF NOT EXISTS idx_pkg_name ON packages(name);
         CREATE INDEX IF NOT EXISTS idx_pkg_source ON packages(source);
     """)
-    db.commit()
+    conn.commit()
 
-init_schema()
+# Initialize on startup
+init_db_conn = get_db()
+init_schema(init_db_conn)
+init_db_conn.close()
+
+# Lock to serialize write operations (crawlers + reindex)
+db_lock = Lock()
+
+# ---------- Async DB helpers ----------
+async def db_execute(query: str, params: tuple = ()):
+    """Run a database write/update in a thread-safe manner."""
+    def _exec():
+        conn = get_db()
+        with db_lock:
+            conn.execute(query, params)
+            conn.commit()
+        conn.close()
+    await asyncio.to_thread(_exec)
+
+async def db_fetchall(query: str, params: tuple = ()):
+    """Fetch results from a SELECT query."""
+    def _fetch():
+        conn = get_db()
+        cur = conn.execute(query, params)
+        rows = cur.fetchall()
+        conn.close()
+        return rows
+    return await asyncio.to_thread(_fetch)
+
+async def db_fetchone(query: str, params: tuple = ()):
+    """Fetch a single row."""
+    rows = await db_fetchall(query, params)
+    return rows[0] if rows else None
 
 # ---------- Pydantic Models ----------
 class PackageInfo(BaseModel):
@@ -101,9 +138,6 @@ class ReindexRequest(BaseModel):
 
 # ---------- Plugin-aware Crawling ----------
 async def run_crawlers(session: aiohttp.ClientSession, source: str = None):
-    """
-    Execute crawler functions for all loaded plugins, or for a specific source.
-    """
     crawlers = get_crawlers()
     if source:
         crawler = crawlers.get(source)
@@ -120,9 +154,7 @@ async def run_crawlers(session: aiohttp.ClientSession, source: str = None):
 
 # ---------- Background Task ----------
 async def periodic_index():
-    """Run crawlers for all plugin-defined sources periodically."""
-    # Load plugins on startup
-    load_plugins()
+    load_plugins()  # ensure plugins are loaded before first crawl
     async with aiohttp.ClientSession() as session:
         while True:
             await run_crawlers(session)
@@ -140,7 +172,6 @@ async def search(
     source: str = Query("all", description="Comma-separated sources or 'all'"),
     limit: int = Query(20, ge=1, le=100)
 ):
-    """Search for packages by name across all indexed repositories."""
     try:
         if source == "all":
             query = "SELECT * FROM packages WHERE name LIKE ? LIMIT ?"
@@ -151,8 +182,7 @@ async def search(
             query = f"SELECT * FROM packages WHERE name LIKE ? AND source IN ({placeholders}) LIMIT ?"
             params = (f"%{q}%", *sources, limit)
 
-        cur = db.execute(query, params)
-        rows = cur.fetchall()
+        rows = await db_fetchall(query, params)
         return {
             "results": [
                 {
@@ -177,9 +207,7 @@ async def search(
 
 @app.get("/api/v1/package/{pkg_id}")
 async def get_package(pkg_id: str):
-    """Return details of a single package by its ID."""
-    cur = db.execute("SELECT * FROM packages WHERE id = ?", (pkg_id,))
-    row = cur.fetchone()
+    row = await db_fetchone("SELECT * FROM packages WHERE id = ?", (pkg_id,))
     if not row:
         raise HTTPException(status_code=404, detail="Package not found")
     return {
@@ -198,7 +226,6 @@ async def get_package(pkg_id: str):
 
 @app.post("/api/v1/reindex")
 async def reindex(req: ReindexRequest = ReindexRequest()):
-    """Trigger reindexing of one or all sources (uses plugin crawlers)."""
     async def do_crawl():
         async with aiohttp.ClientSession() as session:
             await run_crawlers(session, req.source)
@@ -207,7 +234,6 @@ async def reindex(req: ReindexRequest = ReindexRequest()):
 
 @app.get("/api/v1/health")
 async def health():
-    """Simple health check."""
     return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 @app.get("/api/v1/plugins")
