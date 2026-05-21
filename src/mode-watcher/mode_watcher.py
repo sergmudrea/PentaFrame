@@ -1,29 +1,37 @@
 #!/usr/bin/env python3
 """
-Penta Mode Watcher
-==================
+Penta Mode Watcher (v1.1)
+==========================
 Subscribes to MQTT module attach/detach events and automatically
 switches the system mode via the Resolver API.
 
+New in v1.1:
+  - Handles 'detach' events: if no other module of a higher-priority rule
+    is attached, reverts to the default mode.
+  - Mode rules can specify a 'priority' (lower = more important).
+  - Default mode is configurable (default: "desktop").
+
 Configuration (in /etc/penta/config.yaml):
   mode_watcher:
+    default_mode: "desktop"
     rules:
       - module_type: "HackRF"
         mode: "pentest"
+        priority: 10
       - module_type: "Zigbee"
         mode: "smarthome"
+        priority: 20
       - module_type: "GPU"
         mode: "desktop"
-
-Usage:
-    python3 src/mode-watcher/mode_watcher.py
+        priority: 30
 """
 
 import json
 import logging
+import os
 import time
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
 
 import paho.mqtt.client as mqtt
 import requests
@@ -44,10 +52,17 @@ MQTT_BROKER = MQTT_CONFIG.get("broker", "localhost")
 MQTT_PORT = MQTT_CONFIG.get("port", 1883)
 MQTT_CLIENT_ID = "mode-watcher"
 
-RESOLVER_URL = "http://localhost:8500"  # or unix socket path
+RESOLVER_URL = "http://localhost:8500"  # will be updated to Unix socket later
 
-# Rules: list of {"module_type": "...", "mode": "..."}
+DEFAULT_MODE = WATCHER_CONFIG.get("default_mode", "desktop")
 RULES: List[Dict[str, str]] = WATCHER_CONFIG.get("rules", [])
+
+# Sort rules by priority (lowest first)
+RULES.sort(key=lambda r: r.get("priority", 100))
+
+# ---------- State ----------
+active_modules: Dict[str, str] = {}  # module_type -> addr
+current_mode: str = DEFAULT_MODE
 
 # ---------- Logging ----------
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] mode-watcher: %(message)s")
@@ -64,23 +79,54 @@ def on_connect(client, userdata, flags, rc):
     else:
         logger.error(f"MQTT connection failed, rc={rc}")
 
+def switch_mode(new_mode: str):
+    """Call Resolver to switch mode."""
+    global current_mode
+    if new_mode != current_mode:
+        resp = requests.post(f"{RESOLVER_URL}/api/v1/mode/switch?mode={new_mode}")
+        if resp.status_code == 200:
+            logger.info(f"Switched mode: {current_mode} → {new_mode}")
+            current_mode = new_mode
+        else:
+            logger.warning(f"Failed to switch mode to '{new_mode}': {resp.text}")
+
+def recompute_mode():
+    """Determine the most appropriate mode based on currently attached modules."""
+    if not active_modules:
+        switch_mode(DEFAULT_MODE)
+        return
+    # Find the rule with the smallest priority whose module is attached
+    for rule in RULES:
+        if rule["module_type"] in active_modules.values():
+            switch_mode(rule["mode"])
+            return
+    # No matching rule -> default
+    switch_mode(DEFAULT_MODE)
+
 def on_message(client, userdata, msg):
     try:
         payload = json.loads(msg.payload.decode())
         module_type = payload.get("type", "")
+        addr = payload.get("addr", "")
         if not module_type:
             return
-        # Find matching rule
-        for rule in RULES:
-            if rule.get("module_type") == module_type:
-                new_mode = rule["mode"]
-                # Switch mode
-                resp = requests.post(f"{RESOLVER_URL}/api/v1/mode/switch?mode={new_mode}")
-                if resp.status_code == 200:
-                    logger.info(f"Switched to mode '{new_mode}' due to {module_type} {msg.topic}")
-                else:
-                    logger.warning(f"Failed to switch mode: {resp.text}")
-                break
+
+        if msg.topic == "penta/module/attach":
+            active_modules[addr] = module_type
+            logger.info(f"Module {module_type} ({addr}) attached.")
+        elif msg.topic == "penta/module/detach":
+            if addr in active_modules:
+                removed = active_modules.pop(addr)
+                logger.info(f"Module {removed} ({addr}) detached.")
+            else:
+                # If detach payload lacks addr, remove by type (best effort)
+                for k, v in list(active_modules.items()):
+                    if v == module_type:
+                        active_modules.pop(k)
+                        logger.info(f"Module {v} ({k}) detached (by type).")
+                        break
+
+        recompute_mode()
     except Exception as e:
         logger.error(f"Error processing message: {e}")
 
@@ -89,7 +135,7 @@ mqtt_client.on_message = on_message
 
 # ---------- Main ----------
 def main():
-    logger.info("Starting mode-watcher...")
+    logger.info(f"Starting mode-watcher (default mode: {DEFAULT_MODE})...")
     try:
         mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
         mqtt_client.loop_forever()
@@ -99,5 +145,4 @@ def main():
         logger.error(f"Fatal error: {e}")
 
 if __name__ == "__main__":
-    import os
     main()
