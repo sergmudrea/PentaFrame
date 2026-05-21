@@ -1,5 +1,6 @@
 # Penta OS Container Toolbox Definitions
-# Each toolbox defines a container image and its package manager.
+# Each toolbox defines a container image, its package manager, and optional
+# install/uninstall command templates.
 
 toolboxes:
   debian-stable:
@@ -7,6 +8,8 @@ toolboxes:
     package_manager: "apt"
     init: false
     pre_install: "apt update"
+    install_command: "sudo apt install -y {package}"
+    uninstall_command: "sudo apt remove -y {package}"
     user: "penta"
 
   arch-toolbox:
@@ -15,6 +18,8 @@ toolboxes:
     aur_helper: "yay"
     init: true
     pre_install: "pacman -Syu --noconfirm"
+    install_command: "yay -S --noconfirm {package}"
+    uninstall_command: "yay -R --noconfirm {package}"
     user: "builder"
 
   fedora-toolbox:
@@ -22,6 +27,8 @@ toolboxes:
     package_manager: "dnf"
     copr: ["rpmfusion-free", "rpmfusion-nonfree"]
     pre_install: "dnf -y update"
+    install_command: "sudo dnf install -y {package}"
+    uninstall_command: "sudo dnf remove -y {package}"
     user: "penta"
 
   kali-toolbox:
@@ -29,17 +36,23 @@ toolboxes:
     package_manager: "apt"
     init: true
     pre_install: "apt update"
+    install_command: "sudo apt install -y {package}"
+    uninstall_command: "sudo apt remove -y {package}"
     user: "pentester"
 
   python-slim:
-    image: "python:3.14"
+    image: "python:3.12-slim"
     package_manager: "pip"
+    install_command: "pip install {package}"
+    uninstall_command: "pip uninstall -y {package}"
     user: "pyuser"
 
   node-slim:
-    image: "node:24-slim"
+    image: "node:20-slim"
     package_manager: "npm"
     global_install: true
+    install_command: "npm install -g {package}"
+    uninstall_command: "npm uninstall -g {package}"
     user: "nodeuser"
 
   winbox:
@@ -47,10 +60,15 @@ toolboxes:
     package_manager: "wine"
     exec_prefix: "box64 wine"
     init: true
+    install_command: "box64 wine /tmp/installer.exe /silent"
+    # Windows apps often provide their own uninstaller; we rely on manual removal for now
+    uninstall_command: ""
     user: "penta"
 
   homebrew:
     image: "linuxbrew/brew:latest"
     package_manager: "brew"
     host_integration: true
+    install_command: "brew install {package}"
+    uninstall_command: "brew uninstall {package}"
     user: "brewuser"
