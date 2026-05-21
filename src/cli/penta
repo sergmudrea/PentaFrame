@@ -185,6 +185,128 @@ def install(package, source, username):
     except requests.RequestException as e:
         click.echo(f"Error: {e}")
         sys.exit(1)
+# ---------- Remove ----------
+@cli.command()
+@click.argument("app")
+def remove(app):
+    """Remove an installed application."""
+    check_resolver()
+    try:
+        r = requests.post(f"{RESOLVER_URL}/api/v1/uninstall/{app}")
+        r.raise_for_status()
+        click.echo(f"'{app}' removed.")
+    except requests.RequestException as e:
+        click.echo(f"Error: {e}")
+        sys.exit(1)
 
-# (Остальные команды: remove, list, search, mode, module, system)
-# будут следовать после того, как этот блок уместится в ответ.
+# ---------- List ----------
+@cli.command("list")
+def list_apps():
+    """List all installed applications."""
+    check_resolver()
+    try:
+        r = requests.get(f"{RESOLVER_URL}/api/v1/installed")
+        r.raise_for_status()
+        data = r.json()
+        apps = data.get("installed", [])
+        if not apps:
+            click.echo("No applications installed.")
+            return
+        for app in apps:
+            click.echo(f"  {app['name']}")
+    except requests.RequestException as e:
+        click.echo(f"Error: {e}")
+        sys.exit(1)
+
+# ---------- Search ----------
+@cli.command()
+@click.argument("term")
+def search(term):
+    """Search for a package across all repositories."""
+    try:
+        r = requests.get(f"{HUB_URL}/api/v1/search", params={"q": term, "limit": 10})
+        r.raise_for_status()
+        results = r.json().get("results", [])
+        if not results:
+            click.echo("No results found.")
+            return
+        for pkg in results:
+            click.echo(f"{pkg['name']} ({pkg['source']}) - {pkg.get('version','?')} : {pkg.get('description','')}")
+    except requests.RequestException as e:
+        click.echo(f"Error: {e}")
+
+# ---------- Mode ----------
+@cli.group()
+def mode():
+    """Manage Penta OS mode."""
+    pass
+
+@mode.command("set")
+@click.argument("mode_name")
+def mode_set(mode_name):
+    """Switch system mode (phone, desktop, pentest, server, router, smarthome, ai)."""
+    check_resolver()
+    try:
+        r = requests.post(f"{RESOLVER_URL}/api/v1/mode/switch", params={"mode": mode_name})
+        r.raise_for_status()
+        click.echo(f"Mode switched to '{mode_name}'.")
+    except requests.RequestException as e:
+        click.echo(f"Error: {e}")
+
+# ---------- Module ----------
+@cli.group()
+def module():
+    """Interact with hardware modules."""
+    pass
+
+@module.command("list")
+def module_list():
+    """List connected hardware modules."""
+    try:
+        r = requests.get(f"{PENTAD_URL}/api/v1/status")
+        r.raise_for_status()
+        data = r.json()
+        modules = data.get("modules", [])
+        if not modules:
+            click.echo("No modules connected.")
+        for mod in modules:
+            click.echo(f"  {mod.get('type','unknown')} at {mod.get('addr','?')} (serial: {mod.get('serial','?')})")
+    except requests.RequestException:
+        click.echo("Cannot reach pentad daemon.")
+
+# ---------- System ----------
+@cli.group()
+def system():
+    """System information and utilities."""
+    pass
+
+@system.command("info")
+def system_info():
+    """Show system health and resource usage."""
+    try:
+        hr = requests.get(f"{HUB_URL}/api/v1/health")
+        hub_ok = hr.status_code == 200
+    except:
+        hub_ok = False
+    try:
+        rr = requests.get(f"{RESOLVER_URL}/api/v1/health")
+        res_ok = rr.status_code == 200
+    except:
+        res_ok = False
+    try:
+        pr = requests.get(f"{PENTAD_URL}/api/v1/status")
+        pentad_data = pr.json()
+        pentad_ok = True
+    except:
+        pentad_ok = False
+
+    click.echo(f"Penta Hub: {'running' if hub_ok else 'down'}")
+    click.echo(f"Penta Resolver: {'running' if res_ok else 'down'}")
+    click.echo(f"pentad: {'running' if pentad_ok else 'down'}")
+    if pentad_ok:
+        modules = pentad_data.get("modules", [])
+        click.echo(f"Connected modules: {len(modules)}")
+
+# ---------- Entry Point ----------
+if __name__ == "__main__":
+    cli()
