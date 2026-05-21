@@ -1,0 +1,51 @@
+# AppArmor profile for pentad (Penta Module Daemon)
+# Restrict I²C, GPIO, MQTT, and REST API access.
+
+#include <tunables/global>
+
+/usr/bin/pentad {
+  #include <abstractions/base>
+  #include <abstractions/python>
+
+  capability sys_admin,
+  capability net_admin,
+  capability sys_rawio,
+
+  # I²C devices
+  /dev/i2c-* rw,
+  /dev/i2c* rw,
+
+  # GPIO sysfs
+  /sys/class/gpio/** rw,
+  /sys/devices/platform/** r,
+
+  # Device tree (ARM)
+  /proc/device-tree/** r,
+
+  # Python runtime
+  /usr/bin/python3.* ix,
+  /usr/lib/python3/** mr,
+
+  # Penta directories
+  /var/log/penta/pentad.log w,
+  /run/penta/pentad.pid rw,
+  /etc/penta/pentad.conf r,
+  /opt/penta/pentad/ r,
+  /opt/penta/pentad/** rw,
+
+  # MQTT broker communication
+  network inet stream,
+  network inet6 stream,
+  unix (connect, receive, send) type=stream peer=(addr="@penta_mqtt"),
+
+  # Allow signals with resolver
+  signal (send) peer=penta-resolver,
+  signal (receive),
+
+  # Deny dangerous accesses
+  deny @{PROC}/@{pid}/mem rw,
+  deny /bin/** w,
+  deny /sbin/** w,
+  deny /usr/bin/** w,
+  deny /usr/sbin/** w,
+}
