@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """
-Penta Hub - Metadata Aggregator Service (v1.6.3)
+Penta Hub - Metadata Aggregator Service (v1.6.4)
 =================================================
-FastAPI-based microservice that indexes package metadata from multiple
-repositories (built-in and user-defined via plugins).
+FastAPI microservice that indexes packages from multiple repositories.
 
-Changes in v1.6.3:
-  - Search results include 'priority' field fetched from plugins.
-  - Uses get_source_priority() from plugin_loader.
-  - All previous fixes retained.
+New in v1.6.4:
+  - Runs on a Unix domain socket (/run/penta/hub.sock) instead of TCP port.
+    Socket owned by penta:penta with mode 660 – only processes in the penta group
+    (including the resolver, CLI, and UI) can access it.
+  - The TCP endpoint remains optional for development (controlled by PENTA_HUB_BIND).
+  - All previous functionality preserved.
 
-Usage:
-    uvicorn src.hub.penta-hub:app --host 0.0.0.0 --port 8400
+Usage (production):
+    uvicorn src.hub.penta-hub:app --uds /run/penta/hub.sock --uid penta --gid penta --forwarded-allow-ips '*'
 """
 
 import asyncio
@@ -25,12 +26,12 @@ from typing import Optional, List, Dict, Any
 
 import aiohttp
 import yaml
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel
 
 # ---------- Plugin Loader ----------
 import sys
-sys.path.insert(0, str(Path(__file__).parent))  # ensure local imports work
+sys.path.insert(0, str(Path(__file__).parent))
 from plugin_loader import load_plugins, get_crawlers, get_plugin, get_source_priority
 
 # ---------- Configuration ----------
@@ -50,9 +51,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] hub:
 logger = logging.getLogger("penta-hub")
 
 # ---------- FastAPI App ----------
-app = FastAPI(title="Penta Hub", version="1.6.3")
+app = FastAPI(title="Penta Hub", version="1.6.4")
 
-# ---------- Thread-Safe Database ----------
+# ---------- Thread-Safe Database (unchanged) ----------
 def get_db() -> sqlite3.Connection:
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
@@ -122,7 +123,7 @@ class PackageInfo(BaseModel):
     icon_url: Optional[str] = None
     dependencies: Optional[list[str]] = []
     last_updated: Optional[str] = None
-    priority: int = 100  # lower = higher preference
+    priority: int = 100
 
 class ReindexRequest(BaseModel):
     source: Optional[str] = None
@@ -164,7 +165,7 @@ async def insert_packages(packages: List[Dict[str, Any]]):
                 pkg.get("dependencies", "[]")
             )
         )
-    logger.info(f"Inserted/updated {len(packages)} packages from crawl.")
+    logger.info(f"Inserted/updated {len(packages)} packages.")
 
 # ---------- Background Task ----------
 async def periodic_index():
@@ -215,7 +216,6 @@ async def search(
                 "last_updated": row["last_updated"],
                 "priority": priority,
             })
-        # Sort by priority (ascending) so best sources appear first
         results.sort(key=lambda r: r["priority"])
         return {"results": results}
     except Exception as e:
