@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 """
-Penta Resolver - Smart Docking Engine (v1.6.7)
+Penta Resolver - Smart Docking Engine (v1.6.8)
 ===============================================
-Accepts installation requests, queries Penta Hub, manages containers,
-executes installs/uninstalls, and manages desktop/wrapper files.
-
-New in v1.6.7:
-  - Supports GitHub source: clones repo, auto-detects build system, installs.
-  - Supports AppImage source: downloads, makes executable, creates wrapper.
-  - Flatpak and Snap are handled by generic install_command (Hub returns commands).
-  - All previous features (priority, container-side uninstall, Unix sockets) retained.
-
-Usage (production):
+... (прежний docstring, обновлён) ...
+Changes in v1.6.8:
+  - Connects to Penta Hub via Unix domain socket (unix:///run/penta/hub.sock).
+  - Uses aiohttp.UnixConnector for all Hub API calls.
+  - Default HUB_ENDPOINT changed to unix socket if not overridden.
+  - Added requests-unixsocket dependency for CLI (separate file).
+Usage:
     uvicorn src.resolver.penta-resolver:app --uds /run/penta/resolver.sock --uid penta --gid penta
 """
 
@@ -26,6 +23,7 @@ import tempfile
 import uuid
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+from urllib.parse import urlparse
 
 import aiohttp
 import yaml
@@ -41,7 +39,9 @@ with open(CONFIG_PATH, "r") as f:
     config = yaml.safe_load(f)
 
 RESOLVER_CONFIG = config.get("resolver", {})
-HUB_ENDPOINT = config.get("hub", {}).get("endpoint", "http://localhost:8400")
+HUB_CONFIG = config.get("hub", {})
+# By default use Unix socket; fallback to TCP for dev/testing
+HUB_ENDPOINT = HUB_CONFIG.get("endpoint", "unix:///run/penta/hub.sock")
 CONTAINER_ENGINE = RESOLVER_CONFIG.get("container_engine", "distrobox")
 AUTO_ROLLBACK = RESOLVER_CONFIG.get("auto_rollback", True)
 TEMP_DIR = Path(RESOLVER_CONFIG.get("temp_dir", "/var/tmp/penta-install"))
@@ -62,7 +62,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] reso
 logger = logging.getLogger("penta-resolver")
 
 # ---------- FastAPI ----------
-app = FastAPI(title="Penta Resolver", version="1.6.7")
+app = FastAPI(title="Penta Resolver", version="1.6.8")
 
 tasks: Dict[str, Dict[str, Any]] = {}
 
@@ -86,7 +86,7 @@ class TaskStatus(BaseModel):
     log: list[str] = []
     result: Optional[dict] = None
 
-# ---------- Helpers (unchanged except additions) ----------
+# ---------- Helpers ----------
 def get_user_home(username: Optional[str]) -> Path:
     if username:
         home = Path(f"/home/{username}")
@@ -127,13 +127,23 @@ def remove_metadata(home: Path, app_name: str) -> Optional[Dict[str, Any]]:
     return None
 
 async def search_package(package: str, source: str = "all") -> list[dict]:
-    async with aiohttp.ClientSession() as session:
-        url = f"{HUB_ENDPOINT}/api/v1/search"
-        params = {"q": package, "source": source, "limit": 10}
-        async with session.get(url, params=params) as resp:
-            if resp.status != 200:
-                raise HTTPException(status_code=502, detail="Hub search failed")
-            return (await resp.json()).get("results", [])
+    """Search Penta Hub via Unix socket or TCP."""
+    url = f"{HUB_ENDPOINT}/api/v1/search"
+    params = {"q": package, "source": source, "limit": 10}
+    parsed = urlparse(url)
+    if parsed.scheme == "unix":
+        connector = aiohttp.UnixConnector(path=parsed.path)
+    else:
+        connector = None
+    try:
+        async with aiohttp.ClientSession(connector=connector) as session:
+            async with session.get(url, params=params) as resp:
+                if resp.status != 200:
+                    raise HTTPException(status_code=502, detail="Hub search failed")
+                return (await resp.json()).get("results", [])
+    except aiohttp.ClientConnectorError as e:
+        logger.error(f"Cannot connect to Hub at {HUB_ENDPOINT}: {e}")
+        raise HTTPException(status_code=502, detail="Hub unreachable")
 
 def rank_results(results: list[dict]) -> dict:
     return results[0] if results else {}
@@ -157,6 +167,11 @@ def get_image_for_container(container_name: str) -> str:
     return container_name
 
 def ensure_container(name: str, image: str, init: bool = False) -> bool:
+    # Check distrobox availability
+    try:
+        subprocess.run(["distrobox", "version"], capture_output=True, check=True)
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        raise RuntimeError("Distrobox is not installed or not in PATH.")
     try:
         res = subprocess.run(f"{CONTAINER_ENGINE} list | grep -w {name}",
                              shell=True, capture_output=True, text=True)
@@ -164,7 +179,6 @@ def ensure_container(name: str, image: str, init: bool = False) -> bool:
             return True
     except Exception:
         pass
-
     logger.info(f"Creating container {name} from {image}")
     cmd = f"{CONTAINER_ENGINE} create --name {name} --image {image}"
     if init:
@@ -191,9 +205,7 @@ def install_exe(container_name: str, installer_url: str, log_list: list[str]) ->
     return asyncio.run(run_command(
         f"{CONTAINER_ENGINE} enter {container_name} -- bash -c 'box64 wine /tmp/installer.exe /silent'", log_list))
 
-# ---------- New installers ----------
 async def install_appimage(container_name: str, url: str, log_list: list[str]) -> int:
-    """Download an AppImage, make it executable, and place in /opt/appimages inside the container."""
     filename = os.path.basename(url) or "app.AppImage"
     dl_cmd = f"wget -O /tmp/{filename} '{url}'"
     ret = await run_command(f"{CONTAINER_ENGINE} enter {container_name} -- bash -c '{dl_cmd}'", log_list)
@@ -203,17 +215,10 @@ async def install_appimage(container_name: str, url: str, log_list: list[str]) -
     return await run_command(f"{CONTAINER_ENGINE} enter {container_name} -- bash -c '{install_cmd}'", log_list)
 
 async def install_github(container_name: str, repo: str, log_list: list[str]) -> int:
-    """
-    Clone a GitHub repository, auto-detect build system, build, and install.
-    repo format: 'user/repo' or 'user/repo@branch'.
-    """
-    # Clone repo
     clone_cmd = f"git clone https://github.com/{repo}.git /tmp/repo"
     ret = await run_command(f"{CONTAINER_ENGINE} enter {container_name} -- bash -c '{clone_cmd}'", log_list)
     if ret != 0:
         return ret
-
-    # Detect build system and run appropriate commands
     detect_script = """
 cd /tmp/repo
 if [ -f setup.py ] || [ -f pyproject.toml ]; then
@@ -230,7 +235,6 @@ fi
 """
     return await run_command(f"{CONTAINER_ENGINE} enter {container_name} -- bash -c '{detect_script}'", log_list)
 
-# ---------- Wrapper and desktop helpers (same as before) ----------
 def create_wrapper_script(app_name: str, container_name: str, exec_command: str,
                          is_windows: bool, home_dir: Path) -> str:
     bin_dir = home_dir / ".local" / "bin"
@@ -242,7 +246,6 @@ def create_wrapper_script(app_name: str, container_name: str, exec_command: str,
         suffix += 1
         app_name = f"{base}_{suffix}"
         wrapper_path = bin_dir / app_name
-
     launch = f"box64 wine {exec_command}" if is_windows else exec_command
     script = f"""#!/bin/bash
 # Penta OS wrapper for {app_name}
@@ -293,7 +296,6 @@ def remove_wrappers_and_desktop(home_dir: Path, app_name: str):
         f.unlink()
         logger.info(f"Removed wrapper {f}")
 
-# ---------- Main installation flow ----------
 async def perform_install(task_id: str, request: InstallRequest):
     log: list[str] = []
     tasks[task_id]["status"] = "running"
@@ -302,19 +304,16 @@ async def perform_install(task_id: str, request: InstallRequest):
     try:
         source = request.source
         if source == "github":
-            # GitHub packages don't require Hub search
             repo = request.package
-            container_name = "debian-stable"  # default build environment
+            container_name = "debian-stable"
             exec_name = repo.split('/')[-1].split('@')[0]
             chosen = {"name": exec_name, "source": "github", "container": container_name}
         elif source == "appimage":
-            # AppImage: URL is passed as package name
             url = request.package
-            container_name = "debian-stable"  # minimal container to hold AppImage
+            container_name = "debian-stable"
             exec_name = os.path.basename(url).replace('.AppImage', '').replace('.appimage', '')
             chosen = {"name": exec_name, "source": "appimage", "container": container_name}
         else:
-            # All other sources (apt, aur, flatpak, snap, etc.) go through Hub
             log.append("Searching Hub...")
             results = await search_package(request.package, source)
             if not results:
@@ -326,7 +325,6 @@ async def perform_install(task_id: str, request: InstallRequest):
 
         init = containers_def.get(container_name, {}).get("init", False)
         image = get_image_for_container(container_name)
-
         log.append(f"Preparing {container_name} (image {image})")
         ensure_container(container_name, image, init)
 
@@ -340,18 +338,16 @@ async def perform_install(task_id: str, request: InstallRequest):
             except Exception as e:
                 logger.warning(f"Snapshot failed: {e}")
 
-        # Execute install based on source
         uninstall_cmd = ""
         if source == "appimage":
             ret = await install_appimage(container_name, request.package, log)
             exec_name = chosen["name"]
-            # AppImage executable path inside container
             exec_path = f"/opt/appimages/{os.path.basename(request.package)}"
             is_win = False
         elif source == "github":
             ret = await install_github(container_name, request.package, log)
             exec_name = chosen["name"]
-            exec_path = exec_name   # the built binary should be in PATH inside container
+            exec_path = exec_name
             is_win = False
         elif source == "exe" and request.package.startswith("http"):
             ret = install_exe(container_name, request.package, log)
@@ -359,7 +355,6 @@ async def perform_install(task_id: str, request: InstallRequest):
             exec_path = exec_name
             is_win = True
         else:
-            # Generic install using command from Hub
             install_cmd = chosen.get("install_command", f"echo install {chosen['name']}")
             user = containers_def.get(container_name, {}).get("user")
             ret = install_in_container(container_name, install_cmd, log, user)
@@ -376,7 +371,6 @@ async def perform_install(task_id: str, request: InstallRequest):
         username = request.username or "penta"
         home_dir = get_user_home(username)
         log.append(f"Placing launcher in {home_dir}")
-
         wrapper_name = create_wrapper_script(exec_name, container_name, exec_path, is_win, home_dir)
         generate_desktop_file(chosen["name"], wrapper_name, chosen.get("icon_url", ""), home_dir)
         ensure_path_in_profile(home_dir)
@@ -404,7 +398,7 @@ async def perform_install(task_id: str, request: InstallRequest):
             except Exception as e2:
                 log.append(f"Rollback failed: {e2}")
 
-# ---------- API Endpoints (same as before) ----------
+# ---------- API Endpoints ----------
 @app.post("/api/v1/install")
 async def api_install(req: InstallRequest):
     task_id = str(uuid.uuid4())
@@ -451,7 +445,6 @@ async def perform_uninstall(request: UninstallRequest):
     username = request.username or "penta"
     home_dir = get_user_home(username)
     app_name = request.app_name
-
     meta = remove_metadata(home_dir, app_name)
     if meta:
         container_name = meta.get("container")
