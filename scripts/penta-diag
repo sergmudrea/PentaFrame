@@ -1,0 +1,65 @@
+#!/bin/bash
+# penta-diag - Penta OS System Diagnostics
+set -euo pipefail
+OUTPUT_DIR="/tmp/penta-diag-$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$OUTPUT_DIR"
+SUMMARY="$OUTPUT_DIR/report.txt"
+echo "Penta OS Diagnostics Report - $(date)" > "$SUMMARY"
+echo "=====================================" >> "$SUMMARY"
+
+# Kernel
+echo -e "\n[Kernel]" >> "$SUMMARY"
+uname -a >> "$SUMMARY"
+# Check required configs
+for cfg in BINFMT_MISC OVERLAY_FS BTRFS_FS CGROUP_BPF SECCOMP APPARMOR; do
+  if zgrep "CONFIG_$cfg=y" /proc/config.gz >/dev/null 2>&1; then
+    echo "  $cfg: OK" >> "$SUMMARY"
+  else
+    echo "  $cfg: MISSING or not builtin" >> "$SUMMARY"
+  fi
+done
+
+# Btrfs
+echo -e "\n[Filesystem]" >> "$SUMMARY"
+btrfs filesystem show >> "$SUMMARY" 2>&1 || echo "Btrfs not mounted" >> "$SUMMARY"
+btrfs filesystem df / >> "$SUMMARY" 2>&1
+snapper list >> "$SUMMARY" 2>&1
+
+# Container Engine
+echo -e "\n[Container Engine]" >> "$SUMMARY"
+systemctl is-active balena-engine >> "$SUMMARY" 2>&1 || echo "balena-engine not running" >> "$SUMMARY"
+distrobox version >> "$SUMMARY" 2>&1 || echo "distrobox missing" >> "$SUMMARY"
+distrobox list >> "$SUMMARY" 2>&1
+
+# Penta Services
+echo -e "\n[Penta Services]" >> "$SUMMARY"
+for svc in penta-hub penta-resolver pentad psyched; do
+  status=$(systemctl is-active $svc || true)
+  echo "$svc: $status" >> "$SUMMARY"
+done
+
+# MQTT
+echo -e "\n[MQTT]" >> "$SUMMARY"
+mosquitto_pub -t 'penta/diag' -m 'test' -q 0 2>/dev/null && echo "Broker reachable" >> "$SUMMARY" || echo "MQTT broker not reachable" >> "$SUMMARY"
+
+# I2C Hardware
+echo -e "\n[I2C Bus]" >> "$SUMMARY"
+i2cdetect -y 1 >> "$SUMMARY" 2>&1 || echo "I2C bus 1 not available" >> "$SUMMARY"
+
+# Network & Firewall
+echo -e "\n[Network]" >> "$SUMMARY"
+ip addr show >> "$SUMMARY" 2>&1
+echo -e "\n[Firewall Rules]" >> "$SUMMARY"
+nft list ruleset >> "$SUMMARY" 2>&1 || iptables -L -n -v >> "$SUMMARY"
+
+# Logs (tail last errors)
+echo -e "\n[Recent Penta Errors]" >> "$SUMMARY"
+journalctl -u 'penta-*' -u pentad -u psyched --since '1 hour ago' --priority=err >> "$SUMMARY" 2>&1
+
+# Package statistics
+echo -e "\n[Installed Apps]" >> "$SUMMARY"
+penta list >> "$SUMMARY" 2>&1
+
+echo "Diagnostics saved to $OUTPUT_DIR" >> "$SUMMARY"
+tar -czf "$OUTPUT_DIR.tar.gz" -C /tmp "$(basename "$OUTPUT_DIR")"
+echo "Compressed report: $OUTPUT_DIR.tar.gz"
