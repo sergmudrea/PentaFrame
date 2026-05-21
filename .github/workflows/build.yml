@@ -1,0 +1,50 @@
+name: Build Penta OS
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [arm64, amd64]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install build dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y debootstrap btrfs-progs qemu-user-static binfmt-support \
+            systemd-container curl wget git make gcc-aarch64-linux-gnu parted kpartx rsync \
+            python3 python3-pip shellcheck pylint
+
+      - name: Run linters
+        run: make lint
+
+      - name: Run unit tests
+        run: make test
+
+      - name: Build container toolboxes
+        run: make containers
+
+      - name: Build OS image (${{ matrix.arch }})
+        run: sudo make image ARCH=${{ matrix.arch }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: penta-os-${{ matrix.arch }}
+          path: output/*.img.xz
