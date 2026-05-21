@@ -1,0 +1,109 @@
+# Penta OS - Repository Plugin System
+# ====================================
+# This file defines how to connect and install from ANY external package source.
+# Each plugin entry specifies:
+#   - name: unique identifier
+#   - type: package manager / source type
+#   - index: how to discover packages (URL, API, command)
+#   - install: how to install a package (command template)
+#   - container: which toolbox to use (must exist or be auto-created)
+#   - metadata: optional hints (architecture, version extraction, etc.)
+#
+# Users and communities can add their own plugins here or drop YAML files
+# into /etc/penta/plugins/ (the Hub scans that directory on startup).
+# This enables Penta OS to learn new ecosystems without touching core code.
+
+plugins:
+  # Built-in examples (already hardcoded, kept here as reference)
+  - name: "apt"
+    type: "apt"
+    index:
+      method: "apt-cache"
+      # The Hub uses its internal apt crawler; this entry is for documentation.
+    install:
+      command: "sudo apt install -y {package}"
+      container: "debian-stable"
+
+  - name: "aur"
+    type: "pacman"
+    index:
+      method: "aur-rpc"
+      url: "https://aur.archlinux.org/rpc/v5/search/{query}"
+    install:
+      command: "yay -S --noconfirm {package}"
+      container: "arch-toolbox"
+
+  - name: "pypi"
+    type: "pip"
+    index:
+      method: "pypi-json"
+      url: "https://pypi.org/pypi/{package}/json"
+    install:
+      command: "pip install {package}"
+      container: "python-slim"
+
+  - name: "npm"
+    type: "npm"
+    index:
+      method: "npm-registry"
+      url: "https://registry.npmjs.org/{package}"
+    install:
+      command: "npm install -g {package}"
+      container: "node-slim"
+
+  - name: "homebrew"
+    type: "brew"
+    index:
+      method: "brew-search"
+      # executed in homebrew container
+      command: "brew search {query}"
+    install:
+      command: "brew install {package}"
+      container: "homebrew"
+
+  - name: "crates.io"
+    type: "cargo"
+    index:
+      method: "crates-io-api"
+      url: "https://crates.io/api/v1/crates?q={query}"
+    install:
+      command: "cargo install {package}"
+      container: "rust-toolbox"  # must be defined in containers.yaml
+
+  - name: "github-releases"
+    type: "github"
+    index:
+      method: "github-api"
+      url: "https://api.github.com/search/repositories?q={query}"
+    install:
+      # This is a template; actual script may clone, detect build system, and run
+      command: "penta-github-install {package}"  # custom script in container
+      container: "debian-stable"
+
+  - name: "custom-ppa"
+    type: "apt"
+    # Example of adding a specific PPA (Ubuntu)
+    index:
+      method: "ppa"
+      url: "ppa:someuser/somepackage"
+    install:
+      command: "sudo add-apt-repository -y ppa:someuser/somepackage && sudo apt update && sudo apt install -y {package}"
+      container: "debian-stable"
+
+  - name: "enterprise-artifactory"
+    type: "generic"
+    index:
+      method: "rest-api"
+      url: "https://artifactory.example.com/api/search/artifact?name={query}"
+      headers:
+        Authorization: "Bearer YOUR_TOKEN"
+    install:
+      command: "curl -u user:pass -O '{download_url}' && dpkg -i {package}.deb"
+      container: "debian-stable"
+
+# Extension guidelines:
+# - Any plugin file dropped into /etc/penta/plugins/ with .yaml extension will be
+#   automatically loaded by the Hub at startup.
+# - The Hub's plugin_loader.py will parse them and generate crawlers dynamically.
+# - For custom index methods not built-in, the plugin can specify a 'script' that
+#   the Hub executes inside the target container to gather package lists.
