@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+"""
+penta - Penta OS Universal CLI
+===============================
+Command-line interface for installing, removing, searching software,
+managing modes, and viewing system status. Communicates with Penta Resolver
+and other Penta services via REST APIs.
+
+Usage:
+    penta install <package> [--source <source>]
+    penta remove <app>
+    penta list
+    penta search <term>
+    penta mode set <mode>
+    penta module list
+    penta system info
+"""
+
+import sys
+import requests
+import click
+
+# ---------- Configuration ----------
+RESOLVER_URL = "http://localhost:8500"
+PENTAD_URL = "http://localhost:8600"
+
+# ---------- Helper Functions ----------
+def print_json(data):
+    """Pretty-print JSON."""
+    import json
+    click.echo(json.dumps(data, indent=2))
+
+def check_resolver():
+    """Verify that the Penta Resolver is reachable."""
+    try:
+        r = requests.get(f"{RESOLVER_URL}/api/v1/health", timeout=2)
+        if r.status_code != 200:
+            click.echo("Penta Resolver is not healthy. Start the service first.")
+            sys.exit(1)
+    except requests.ConnectionError:
+        click.echo("Cannot connect to Penta Resolver. Is it running?")
+        sys.exit(1)
+
+# ---------- CLI Group ----------
+@click.group()
+def cli():
+    """Penta OS - The Universal Package Manager"""
+    pass
+
+# ---------- Install ----------
+@cli.command()
+@click.argument("package")
+@click.option("--source", "-s", default="auto",
+              help="Source repository (apt, aur, pypi, homebrew, github, appimage, exe).")
+def install(package, source):
+    """Install a package from any supported ecosystem."""
+    check_resolver()
+    payload = {"package": package, "source": source}
+    try:
+        r = requests.post(f"{RESOLVER_URL}/api/v1/install", json=payload)
+        r.raise_for_status()
+        data = r.json()
+        task_id = data["task_id"]
+        click.echo(f"Installation started. Task ID: {task_id}")
+        # Poll for task status
+        import time
+        with click.progressbar(length=100, label="Installing") as bar:
+            last_progress = 0
+            while True:
+                time.sleep(0.5)
+                tr = requests.get(f"{RESOLVER_URL}/api/v1/task/{task_id}")
+                task = tr.json()
+                new_progress = task.get("progress", 0)
+                bar.update(new_progress - last_progress)
+                last_progress = new_progress
+                # Print log lines
+                for line in task.get("log", [])[-(bar.pos % 5):]:
+                    if line:
+                        click.echo(f"  {line}")
+                if task["status"] in ("completed", "failed"):
+                    bar.update(100 - last_progress)
+                    click.echo(f"\nStatus: {task['status']}")
+                    if task["status"] == "failed":
+                        sys.exit(1)
+                    break
+    except requests.RequestException as e:
+        click.echo(f"Error: {e}")
+        sys.exit(1)
+
+# ---------- Remove ----------
+@cli.command()
+@click.argument("app")
+def remove(app):
+    """Remove an installed application."""
+    check_resolver()
+    try:
+        r = requests.post(f"{RESOLVER_URL}/api/v1/uninstall/{app}")
+        r.raise_for_status()
+        click.echo(f"'{app}' removed.")
+    except requests.RequestException as e:
+        click.echo(f"Error: {e}")
+        sys.exit(1)
+
+# ---------- List ----------
+@cli.command("list")
+def list_apps():
+    """List all installed applications."""
+    check_resolver()
+    try:
+        r = requests.get(f"{RESOLVER_URL}/api/v1/installed")
+        r.raise_for_status()
+        data = r.json()
+        apps = data.get("installed", [])
+        if not apps:
+            click.echo("No applications installed.")
+            return
+        for app in apps:
+            click.echo(f"  {app['name']}")
+    except requests.RequestException as e:
+        click.echo(f"Error: {e}")
+        sys.exit(1)
+
+# ---------- Search ----------
+@cli.command()
+@click.argument("term")
+def search(term):
+    """Search for a package across all repositories."""
+    # Directly query Penta Hub (port 8400)
+    try:
+        r = requests.get(f"http://localhost:8400/api/v1/search", params={"q": term, "limit": 10})
+        r.raise_for_status()
+        results = r.json().get("results", [])
+        if not results:
+            click.echo("No results found.")
+            return
+        for pkg in results:
+            click.echo(f"{pkg['name']} ({pkg['source']}) - {pkg.get('version','?')} : {pkg.get('description','')}")
+    except requests.RequestException as e:
+        click.echo(f"Error: {e}")
+
+# ---------- Mode ----------
+@cli.group()
+def mode():
+    """Manage Penta OS mode."""
+    pass
+
+@mode.command("set")
+@click.argument("mode_name")
+def mode_set(mode_name):
+    """Switch system mode (phone, desktop, pentest, server, router, smarthome, ai)."""
+    check_resolver()
+    try:
+        r = requests.post(f"{RESOLVER_URL}/api/v1/mode/switch", params={"mode": mode_name})
+        r.raise_for_status()
+        click.echo(f"Mode switched to '{mode_name}'.")
+    except requests.RequestException as e:
+        click.echo(f"Error: {e}")
+
+# ---------- Module ----------
+@cli.group()
+def module():
+    """Interact with hardware modules."""
+    pass
+
+@module.command("list")
+def module_list():
+    """List connected hardware modules."""
+    try:
+        r = requests.get(f"{PENTAD_URL}/api/v1/status")
+        r.raise_for_status()
+        data = r.json()
+        modules = data.get("modules", [])
+        if not modules:
+            click.echo("No modules connected.")
+        for mod in modules:
+            click.echo(f"  {mod.get('type','unknown')} at {mod.get('addr','?')} (serial: {mod.get('serial','?')})")
+    except requests.RequestException:
+        click.echo("Cannot reach pentad daemon.")
+
+# ---------- System ----------
+@cli.group()
+def system():
+    """System information and utilities."""
+    pass
+
+@system.command("info")
+def system_info():
+    """Show system health and resource usage."""
+    # Collect from multiple sources
+    try:
+        # Hub health
+        hr = requests.get("http://localhost:8400/api/v1/health")
+        hub_ok = hr.status_code == 200
+    except:
+        hub_ok = False
+    try:
+        rr = requests.get(f"{RESOLVER_URL}/api/v1/health")
+        res_ok = rr.status_code == 200
+    except:
+        res_ok = False
+    try:
+        pr = requests.get(f"{PENTAD_URL}/api/v1/status")
+        pentad_data = pr.json()
+        pentad_ok = True
+    except:
+        pentad_ok = False
+
+    click.echo(f"Penta Hub: {'running' if hub_ok else 'down'}")
+    click.echo(f"Penta Resolver: {'running' if res_ok else 'down'}")
+    click.echo(f"pentad: {'running' if pentad_ok else 'down'}")
+    if pentad_ok:
+        modules = pentad_data.get("modules", [])
+        click.echo(f"Connected modules: {len(modules)}")
+
+# ---------- Entry Point ----------
+if __name__ == "__main__":
+    cli()
