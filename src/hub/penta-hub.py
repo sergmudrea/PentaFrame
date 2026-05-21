@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Penta Hub - Metadata Aggregator Service (v1.6.2)
+Penta Hub - Metadata Aggregator Service (v1.6.3)
 =================================================
 FastAPI-based microservice that indexes package metadata from multiple
 repositories (built-in and user-defined via plugins).
 
-Changes in v1.6.2:
-  - Crawlers now return package lists; run_crawlers inserts them into DB.
-  - Uses db_execute for thread-safe writes.
-  - All previous fixes (config via env, plugin import, thread-safe SQLite) retained.
+Changes in v1.6.3:
+  - Search results include 'priority' field fetched from plugins.
+  - Uses get_source_priority() from plugin_loader.
+  - All previous fixes retained.
 
 Usage:
     uvicorn src.hub.penta-hub:app --host 0.0.0.0 --port 8400
@@ -31,7 +31,7 @@ from pydantic import BaseModel
 # ---------- Plugin Loader ----------
 import sys
 sys.path.insert(0, str(Path(__file__).parent))  # ensure local imports work
-from plugin_loader import load_plugins, get_crawlers, get_plugin
+from plugin_loader import load_plugins, get_crawlers, get_plugin, get_source_priority
 
 # ---------- Configuration ----------
 CONFIG_PATH = Path(os.environ.get("PENTA_CONFIG", "/etc/penta/config.yaml"))
@@ -50,7 +50,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] hub:
 logger = logging.getLogger("penta-hub")
 
 # ---------- FastAPI App ----------
-app = FastAPI(title="Penta Hub", version="1.6.2")
+app = FastAPI(title="Penta Hub", version="1.6.3")
 
 # ---------- Thread-Safe Database ----------
 def get_db() -> sqlite3.Connection:
@@ -122,6 +122,7 @@ class PackageInfo(BaseModel):
     icon_url: Optional[str] = None
     dependencies: Optional[list[str]] = []
     last_updated: Optional[str] = None
+    priority: int = 100  # lower = higher preference
 
 class ReindexRequest(BaseModel):
     source: Optional[str] = None
@@ -146,7 +147,6 @@ async def run_crawlers(session: aiohttp.ClientSession, source: str = None):
                 logger.error(f"Crawler '{name}' failed: {e}")
 
 async def insert_packages(packages: List[Dict[str, Any]]):
-    """Insert or replace package records into the database."""
     for pkg in packages:
         await db_execute(
             "INSERT OR REPLACE INTO packages (id, name, source, version, description, architecture, container, install_command, icon_url, dependencies) "
@@ -179,7 +179,7 @@ async def startup():
     load_plugins()
     asyncio.create_task(periodic_index())
 
-# ---------- API Endpoints (same as v1.6.1) ----------
+# ---------- API Endpoints ----------
 @app.get("/api/v1/search")
 async def search(
     q: str = Query(..., description="Search query"),
@@ -197,24 +197,27 @@ async def search(
             params = (f"%{q}%", *sources, limit)
 
         rows = await db_fetchall(query, params)
-        return {
-            "results": [
-                {
-                    "id": row["id"],
-                    "name": row["name"],
-                    "source": row["source"],
-                    "version": row["version"],
-                    "description": row["description"],
-                    "architecture": row["architecture"],
-                    "container": row["container"],
-                    "install_command": row["install_command"],
-                    "icon_url": row["icon_url"],
-                    "dependencies": row["dependencies"],
-                    "last_updated": row["last_updated"],
-                }
-                for row in rows
-            ]
-        }
+        results = []
+        for row in rows:
+            source_name = row["source"]
+            priority = get_source_priority(source_name)
+            results.append({
+                "id": row["id"],
+                "name": row["name"],
+                "source": source_name,
+                "version": row["version"],
+                "description": row["description"],
+                "architecture": row["architecture"],
+                "container": row["container"],
+                "install_command": row["install_command"],
+                "icon_url": row["icon_url"],
+                "dependencies": row["dependencies"],
+                "last_updated": row["last_updated"],
+                "priority": priority,
+            })
+        # Sort by priority (ascending) so best sources appear first
+        results.sort(key=lambda r: r["priority"])
+        return {"results": results}
     except Exception as e:
         logger.error(f"Search error: {e}")
         raise HTTPException(status_code=500, detail="Search failed")
@@ -224,10 +227,12 @@ async def get_package(pkg_id: str):
     row = await db_fetchone("SELECT * FROM packages WHERE id = ?", (pkg_id,))
     if not row:
         raise HTTPException(status_code=404, detail="Package not found")
+    source_name = row["source"]
+    priority = get_source_priority(source_name)
     return {
         "id": row["id"],
         "name": row["name"],
-        "source": row["source"],
+        "source": source_name,
         "version": row["version"],
         "description": row["description"],
         "architecture": row["architecture"],
@@ -236,6 +241,7 @@ async def get_package(pkg_id: str):
         "icon_url": row["icon_url"],
         "dependencies": row["dependencies"],
         "last_updated": row["last_updated"],
+        "priority": priority,
     }
 
 @app.post("/api/v1/reindex")
@@ -258,5 +264,6 @@ async def list_plugins():
             "type": plugin.get("type", "unknown"),
             "index_method": plugin.get("index", {}).get("method", "unknown"),
             "container": plugin.get("install", {}).get("container", "unknown"),
+            "priority": plugin.get("priority", 100),
         }
     return {"plugins": plugins}
