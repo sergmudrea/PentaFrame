@@ -1,0 +1,316 @@
+#!/usr/bin/env python3
+"""
+Penta Hub - Metadata Aggregator Service
+=======================================
+FastAPI-based microservice that indexes package metadata from multiple
+repositories (APT, AUR, PyPI, etc.) and exposes a unified search API.
+
+Usage:
+    uvicorn src.hub.penta-hub:app --host 0.0.0.0 --port 8400
+"""
+
+import asyncio
+import logging
+import sqlite3
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Optional
+
+import aiohttp
+import yaml
+from fastapi import FastAPI, HTTPException, Query
+from pydantic import BaseModel
+
+# ---------- Configuration ----------
+CONFIG_PATH = Path("/etc/penta/config.yaml")
+if not CONFIG_PATH.exists():
+    CONFIG_PATH = Path("config/penta.conf.example")
+
+with open(CONFIG_PATH, "r") as f:
+    config = yaml.safe_load(f)
+
+HUB_CONFIG = config.get("hub", {})
+DB_PATH = HUB_CONFIG.get("db_path", "/var/lib/penta/hub.db")
+REFRESH_INTERVAL = HUB_CONFIG.get("refresh_interval", 21600)
+
+# ---------- Logging ----------
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger("penta-hub")
+
+# ---------- FastAPI App ----------
+app = FastAPI(title="Penta Hub", version="1.5.0")
+
+# ---------- Database Setup ----------
+def get_db() -> sqlite3.Connection:
+    """Return a thread‑safe database connection with WAL mode."""
+    Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    return conn
+
+db = get_db()
+
+def init_schema():
+    db.executescript("""
+        CREATE TABLE IF NOT EXISTS packages (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            source TEXT NOT NULL,
+            version TEXT NOT NULL,
+            description TEXT,
+            architecture TEXT DEFAULT 'all',
+            container TEXT NOT NULL,
+            install_command TEXT NOT NULL,
+            icon_url TEXT,
+            dependencies TEXT,          -- JSON array
+            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_pkg_name ON packages(name);
+        CREATE INDEX IF NOT EXISTS idx_pkg_source ON packages(source);
+    """)
+    db.commit()
+
+init_schema()
+
+# ---------- Pydantic Models ----------
+class PackageInfo(BaseModel):
+    id: str
+    name: str
+    source: str
+    version: str
+    description: Optional[str] = None
+    architecture: str = "all"
+    container: str
+    install_command: str
+    icon_url: Optional[str] = None
+    dependencies: Optional[list[str]] = []
+    last_updated: Optional[str] = None
+
+class ReindexRequest(BaseModel):
+    source: Optional[str] = None
+    force: bool = False
+
+# ---------- Repository Crawlers ----------
+
+async def crawl_apt(session: aiohttp.ClientSession):
+    """Index packages from Debian/Ubuntu main repository."""
+    logger.info("Crawling APT repositories...")
+    mirrors = [
+        "http://deb.debian.org/debian/dists/stable/main/binary-arm64/Packages.gz",
+        "http://deb.debian.org/debian/dists/stable/main/binary-amd64/Packages.gz",
+    ]
+    for url in mirrors:
+        try:
+            async with session.get(url) as resp:
+                if resp.status != 200:
+                    continue
+                raw = await resp.read()
+                import gzip
+                data = gzip.decompress(raw).decode("utf-8", errors="replace")
+                entries = data.split("\n\n")
+                for entry in entries[:1000]:  # limit for prototype
+                    pkg = {}
+                    for line in entry.splitlines():
+                        if line.startswith("Package:"):
+                            pkg["name"] = line.split(":", 1)[1].strip()
+                        elif line.startswith("Version:"):
+                            pkg["version"] = line.split(":", 1)[1].strip()
+                        elif line.startswith("Description:"):
+                            pkg["description"] = line.split(":", 1)[1].strip()
+                        elif line.startswith("Architecture:"):
+                            pkg["arch"] = line.split(":", 1)[1].strip()
+                    if "name" in pkg:
+                        pkg_id = f"apt-{pkg['name']}"
+                        db.execute("""
+                            INSERT OR REPLACE INTO packages (id, name, source, version, description, architecture, container, install_command)
+                            VALUES (?, ?, 'apt', ?, ?, ?, 'debian-stable', ?)
+                        """, (
+                            pkg_id,
+                            pkg["name"],
+                            pkg.get("version", "unknown"),
+                            pkg.get("description", ""),
+                            pkg.get("arch", "all"),
+                            f"sudo apt install -y {pkg['name']}"
+                        ))
+                db.commit()
+                logger.info(f"APT crawl completed for {url}")
+        except Exception as e:
+            logger.error(f"APT crawl error {url}: {e}")
+
+async def crawl_aur(session: aiohttp.ClientSession):
+    """Index popular packages from AUR using RPC."""
+    logger.info("Crawling AUR...")
+    try:
+        # Search for a few well‑known packages (prototype limitation)
+        async with session.get("https://aur.archlinux.org/rpc/v5/search/any?arg=linux") as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                for result in data.get("results", []):
+                    pkg_id = f"aur-{result['Name']}"
+                    db.execute("""
+                        INSERT OR REPLACE INTO packages (id, name, source, version, description, architecture, container, install_command)
+                        VALUES (?, ?, 'aur', ?, ?, 'x86_64', 'arch-toolbox', ?)
+                    """, (
+                        pkg_id,
+                        result["Name"],
+                        result.get("Version", "unknown"),
+                        result.get("Description", ""),
+                        f"yay -S --noconfirm {result['Name']}"
+                    ))
+                db.commit()
+                logger.info("AUR crawl completed")
+    except Exception as e:
+        logger.error(f"AUR crawl error: {e}")
+
+async def crawl_pypi(session: aiohttp.ClientSession):
+    """Index top packages from PyPI (simple batch)."""
+    logger.info("Crawling PyPI...")
+    try:
+        async with session.get("https://pypi.org/simple/") as resp:
+            if resp.status == 200:
+                html = await resp.text()
+                # Very simple extraction of a few package names (prototype)
+                import re
+                names = re.findall(r'<a href="/simple/([^/"]+)/">', html)[:200]
+                for name in names:
+                    pkg_id = f"pypi-{name}"
+                    db.execute("""
+                        INSERT OR REPLACE INTO packages (id, name, source, version, description, architecture, container, install_command)
+                        VALUES (?, ?, 'pypi', 'latest', '', 'all', 'python-slim', ?)
+                    """, (
+                        pkg_id,
+                        name,
+                        f"pip install {name}"
+                    ))
+                db.commit()
+                logger.info("PyPI crawl completed")
+    except Exception as e:
+        logger.error(f"PyPI crawl error: {e}")
+
+async def crawl_homebrew(session: aiohttp.ClientSession):
+    """Index some Homebrew formulae (static list for demo)."""
+    logger.info("Crawling Homebrew...")
+    # In a full implementation, we'd call brew search in a container.
+    # Here we inject a few known packages.
+    demo_packages = [
+        ("wget", "wget"),
+        ("node", "node"),
+        ("python", "python@3.12"),
+    ]
+    for name, formula in demo_packages:
+        pkg_id = f"brew-{name}"
+        db.execute("""
+            INSERT OR REPLACE INTO packages (id, name, source, version, description, architecture, container, install_command)
+            VALUES (?, ?, 'homebrew', 'latest', '', 'all', 'homebrew', ?)
+        """, (pkg_id, name, f"brew install {formula}"))
+    db.commit()
+    logger.info("Homebrew crawl completed")
+
+CRAWLERS = {
+    "apt": crawl_apt,
+    "aur": crawl_aur,
+    "pypi": crawl_pypi,
+    "homebrew": crawl_homebrew,
+}
+
+# ---------- Background Task ----------
+async def periodic_index():
+    """Run all crawlers periodically."""
+    async with aiohttp.ClientSession() as session:
+        while True:
+            for name, crawler in CRAWLERS.items():
+                try:
+                    await crawler(session)
+                except Exception as e:
+                    logger.error(f"Unhandled error crawling {name}: {e}")
+            await asyncio.sleep(REFRESH_INTERVAL)
+
+@app.on_event("startup")
+async def startup():
+    asyncio.create_task(periodic_index())
+
+# ---------- API Endpoints ----------
+@app.get("/api/v1/search")
+async def search(
+    q: str = Query(..., description="Search query"),
+    source: str = Query("all", description="Comma-separated sources (apt,aur,pypi,...) or 'all'"),
+    limit: int = Query(20, ge=1, le=100)
+):
+    """Search for packages by name across all indexed repositories."""
+    try:
+        if source == "all":
+            query = "SELECT * FROM packages WHERE name LIKE ? LIMIT ?"
+            params = (f"%{q}%", limit)
+        else:
+            sources = [s.strip() for s in source.split(",")]
+            placeholders = ",".join(["?"] * len(sources))
+            query = f"SELECT * FROM packages WHERE name LIKE ? AND source IN ({placeholders}) LIMIT ?"
+            params = (f"%{q}%", *sources, limit)
+
+        cur = db.execute(query, params)
+        rows = cur.fetchall()
+        return {
+            "results": [
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "source": row["source"],
+                    "version": row["version"],
+                    "description": row["description"],
+                    "architecture": row["architecture"],
+                    "container": row["container"],
+                    "install_command": row["install_command"],
+                    "icon_url": row["icon_url"],
+                    "dependencies": row["dependencies"],
+                    "last_updated": row["last_updated"],
+                }
+                for row in rows
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Search error: {e}")
+        raise HTTPException(status_code=500, detail="Search failed")
+
+@app.get("/api/v1/package/{pkg_id}")
+async def get_package(pkg_id: str):
+    """Return details of a single package by its ID."""
+    cur = db.execute("SELECT * FROM packages WHERE id = ?", (pkg_id,))
+    row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Package not found")
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "source": row["source"],
+        "version": row["version"],
+        "description": row["description"],
+        "architecture": row["architecture"],
+        "container": row["container"],
+        "install_command": row["install_command"],
+        "icon_url": row["icon_url"],
+        "dependencies": row["dependencies"],
+        "last_updated": row["last_updated"],
+    }
+
+@app.post("/api/v1/reindex")
+async def reindex(req: ReindexRequest = ReindexRequest()):
+    """Trigger reindexing of one or all sources."""
+    if req.source and req.source not in CRAWLERS:
+        raise HTTPException(status_code=400, detail=f"Unknown source: {req.source}")
+    # Fire and forget (background task would be better, but simple spawn)
+    async def do_crawl():
+        async with aiohttp.ClientSession() as session:
+            if req.source:
+                await CRAWLERS[req.source](session)
+            else:
+                for crawler in CRAWLERS.values():
+                    await crawler(session)
+    asyncio.create_task(do_crawl())
+    return {"status": "reindex started", "source": req.source or "all"}
+
+@app.get("/api/v1/health")
+async def health():
+    """Simple health check."""
+    return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
