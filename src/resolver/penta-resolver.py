@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Penta Resolver - Smart Docking Engine (v1.6.6)
+Penta Resolver - Smart Docking Engine (v1.6.7)
 ===============================================
-Accepts install/uninstall requests via Unix domain socket
-(/run/penta/resolver.sock) and manages containers.
+Accepts installation requests, queries Penta Hub, manages containers,
+executes installs/uninstalls, and manages desktop/wrapper files.
 
-Changes in v1.6.6:
-  - Runs on Unix socket (same as Hub) for local-only, permission-based access.
-  - Uses 'priority' from Hub; performs container-side uninstall.
-  - All previous fixes retained.
+New in v1.6.7:
+  - Supports GitHub source: clones repo, auto-detects build system, installs.
+  - Supports AppImage source: downloads, makes executable, creates wrapper.
+  - Flatpak and Snap are handled by generic install_command (Hub returns commands).
+  - All previous features (priority, container-side uninstall, Unix sockets) retained.
 
 Usage (production):
     uvicorn src.resolver.penta-resolver:app --uds /run/penta/resolver.sock --uid penta --gid penta
@@ -18,8 +19,10 @@ import asyncio
 import json
 import logging
 import os
+import re
 import stat
 import subprocess
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -59,7 +62,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] reso
 logger = logging.getLogger("penta-resolver")
 
 # ---------- FastAPI ----------
-app = FastAPI(title="Penta Resolver", version="1.6.6")
+app = FastAPI(title="Penta Resolver", version="1.6.7")
 
 tasks: Dict[str, Dict[str, Any]] = {}
 
@@ -83,7 +86,7 @@ class TaskStatus(BaseModel):
     log: list[str] = []
     result: Optional[dict] = None
 
-# ---------- Helpers (unchanged from v1.6.5) ----------
+# ---------- Helpers (unchanged except additions) ----------
 def get_user_home(username: Optional[str]) -> Path:
     if username:
         home = Path(f"/home/{username}")
@@ -188,6 +191,46 @@ def install_exe(container_name: str, installer_url: str, log_list: list[str]) ->
     return asyncio.run(run_command(
         f"{CONTAINER_ENGINE} enter {container_name} -- bash -c 'box64 wine /tmp/installer.exe /silent'", log_list))
 
+# ---------- New installers ----------
+async def install_appimage(container_name: str, url: str, log_list: list[str]) -> int:
+    """Download an AppImage, make it executable, and place in /opt/appimages inside the container."""
+    filename = os.path.basename(url) or "app.AppImage"
+    dl_cmd = f"wget -O /tmp/{filename} '{url}'"
+    ret = await run_command(f"{CONTAINER_ENGINE} enter {container_name} -- bash -c '{dl_cmd}'", log_list)
+    if ret != 0:
+        return ret
+    install_cmd = f"mkdir -p /opt/appimages && mv /tmp/{filename} /opt/appimages/ && chmod +x /opt/appimages/{filename}"
+    return await run_command(f"{CONTAINER_ENGINE} enter {container_name} -- bash -c '{install_cmd}'", log_list)
+
+async def install_github(container_name: str, repo: str, log_list: list[str]) -> int:
+    """
+    Clone a GitHub repository, auto-detect build system, build, and install.
+    repo format: 'user/repo' or 'user/repo@branch'.
+    """
+    # Clone repo
+    clone_cmd = f"git clone https://github.com/{repo}.git /tmp/repo"
+    ret = await run_command(f"{CONTAINER_ENGINE} enter {container_name} -- bash -c '{clone_cmd}'", log_list)
+    if ret != 0:
+        return ret
+
+    # Detect build system and run appropriate commands
+    detect_script = """
+cd /tmp/repo
+if [ -f setup.py ] || [ -f pyproject.toml ]; then
+    pip install .
+elif [ -f Cargo.toml ]; then
+    cargo install --path .
+elif [ -f Makefile ]; then
+    make && make install
+elif [ -f CMakeLists.txt ]; then
+    mkdir -p build && cd build && cmake .. && make && make install
+else
+    echo "Unknown build system" && exit 1
+fi
+"""
+    return await run_command(f"{CONTAINER_ENGINE} enter {container_name} -- bash -c '{detect_script}'", log_list)
+
+# ---------- Wrapper and desktop helpers (same as before) ----------
 def create_wrapper_script(app_name: str, container_name: str, exec_command: str,
                          is_windows: bool, home_dir: Path) -> str:
     bin_dir = home_dir / ".local" / "bin"
@@ -250,21 +293,37 @@ def remove_wrappers_and_desktop(home_dir: Path, app_name: str):
         f.unlink()
         logger.info(f"Removed wrapper {f}")
 
+# ---------- Main installation flow ----------
 async def perform_install(task_id: str, request: InstallRequest):
     log: list[str] = []
     tasks[task_id]["status"] = "running"
     tasks[task_id]["log"] = log
     snap_num = None
     try:
-        log.append("Searching Hub...")
-        results = await search_package(request.package, request.source)
-        if not results:
-            raise Exception("No package found.")
-        chosen = rank_results(results)
-        log.append(f"Selected {chosen['name']} ({chosen['source']})")
+        source = request.source
+        if source == "github":
+            # GitHub packages don't require Hub search
+            repo = request.package
+            container_name = "debian-stable"  # default build environment
+            exec_name = repo.split('/')[-1].split('@')[0]
+            chosen = {"name": exec_name, "source": "github", "container": container_name}
+        elif source == "appimage":
+            # AppImage: URL is passed as package name
+            url = request.package
+            container_name = "debian-stable"  # minimal container to hold AppImage
+            exec_name = os.path.basename(url).replace('.AppImage', '').replace('.appimage', '')
+            chosen = {"name": exec_name, "source": "appimage", "container": container_name}
+        else:
+            # All other sources (apt, aur, flatpak, snap, etc.) go through Hub
+            log.append("Searching Hub...")
+            results = await search_package(request.package, source)
+            if not results:
+                raise Exception("No package found.")
+            chosen = rank_results(results)
+            log.append(f"Selected {chosen['name']} ({chosen['source']})")
+            source = chosen.get("source", request.source)
+            container_name = chosen.get("container", f"{source}-toolbox")
 
-        source = chosen.get("source", request.source)
-        container_name = chosen.get("container", f"{source}-toolbox")
         init = containers_def.get(container_name, {}).get("init", False)
         image = get_image_for_container(container_name)
 
@@ -281,15 +340,32 @@ async def perform_install(task_id: str, request: InstallRequest):
             except Exception as e:
                 logger.warning(f"Snapshot failed: {e}")
 
-        if source == "exe" and request.package.startswith("http"):
+        # Execute install based on source
+        uninstall_cmd = ""
+        if source == "appimage":
+            ret = await install_appimage(container_name, request.package, log)
+            exec_name = chosen["name"]
+            # AppImage executable path inside container
+            exec_path = f"/opt/appimages/{os.path.basename(request.package)}"
+            is_win = False
+        elif source == "github":
+            ret = await install_github(container_name, request.package, log)
+            exec_name = chosen["name"]
+            exec_path = exec_name   # the built binary should be in PATH inside container
+            is_win = False
+        elif source == "exe" and request.package.startswith("http"):
             ret = install_exe(container_name, request.package, log)
             exec_name = chosen.get("executable", "app")
-            uninstall_cmd = ""
+            exec_path = exec_name
+            is_win = True
         else:
+            # Generic install using command from Hub
             install_cmd = chosen.get("install_command", f"echo install {chosen['name']}")
             user = containers_def.get(container_name, {}).get("user")
             ret = install_in_container(container_name, install_cmd, log, user)
             exec_name = chosen.get("executable", chosen["name"])
+            exec_path = exec_name
+            is_win = False
             uninstall_cmd = containers_def.get(container_name, {}).get("uninstall_command", "")
             if uninstall_cmd:
                 uninstall_cmd = uninstall_cmd.replace("{package}", exec_name)
@@ -301,8 +377,7 @@ async def perform_install(task_id: str, request: InstallRequest):
         home_dir = get_user_home(username)
         log.append(f"Placing launcher in {home_dir}")
 
-        is_win = (source == "exe")
-        wrapper_name = create_wrapper_script(exec_name, container_name, exec_name, is_win, home_dir)
+        wrapper_name = create_wrapper_script(exec_name, container_name, exec_path, is_win, home_dir)
         generate_desktop_file(chosen["name"], wrapper_name, chosen.get("icon_url", ""), home_dir)
         ensure_path_in_profile(home_dir)
 
@@ -329,24 +404,7 @@ async def perform_install(task_id: str, request: InstallRequest):
             except Exception as e2:
                 log.append(f"Rollback failed: {e2}")
 
-async def perform_uninstall(request: UninstallRequest):
-    username = request.username or "penta"
-    home_dir = get_user_home(username)
-    app_name = request.app_name
-
-    meta = remove_metadata(home_dir, app_name)
-    if meta:
-        container_name = meta.get("container")
-        uninstall_cmd = meta.get("uninstall_command", "")
-        if container_name and uninstall_cmd:
-            log_lines = []
-            ret = install_in_container(container_name, uninstall_cmd, log_lines)
-            if ret != 0:
-                logger.warning(f"Container uninstall returned non-zero: {ret}")
-    remove_wrappers_and_desktop(home_dir, app_name)
-    return True
-
-# ---------- API Endpoints ----------
+# ---------- API Endpoints (same as before) ----------
 @app.post("/api/v1/install")
 async def api_install(req: InstallRequest):
     task_id = str(uuid.uuid4())
@@ -388,3 +446,20 @@ async def api_mode_switch(mode: str = Query("desktop")):
 @app.get("/api/v1/health")
 async def health():
     return {"status": "ok"}
+
+async def perform_uninstall(request: UninstallRequest):
+    username = request.username or "penta"
+    home_dir = get_user_home(username)
+    app_name = request.app_name
+
+    meta = remove_metadata(home_dir, app_name)
+    if meta:
+        container_name = meta.get("container")
+        uninstall_cmd = meta.get("uninstall_command", "")
+        if container_name and uninstall_cmd:
+            log_lines = []
+            ret = install_in_container(container_name, uninstall_cmd, log_lines)
+            if ret != 0:
+                logger.warning(f"Container uninstall returned non-zero: {ret}")
+    remove_wrappers_and_desktop(home_dir, app_name)
+    return True
