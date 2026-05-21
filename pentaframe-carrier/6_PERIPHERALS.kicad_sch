@@ -1,0 +1,208 @@
+(kicad_sch (version 20240108) (generator "kicad_sch")
+  (paper "A3")
+  (title_block
+    (title "PentaFrame - Peripherals (GPIO Expander, Supervisor, Sensors, DEV Header)")
+    (date "2026-05-17")
+    (rev "1.0")
+    (company "PentaFrame Technologies")
+  )
+
+  (lib_symbols
+    (symbol "power:GND" (pin (name "1") (number "1")) (property "Reference" "#PWR") (property "Value" "GND"))
+    (symbol "power:+3.3V" (pin (name "1") (number "1")) (property "Reference" "#PWR") (property "Value" "+3.3V"))
+    (symbol "power:+5V" (pin (name "1") (number "1")) (property "Reference" "#PWR") (property "Value" "+5V"))
+
+    (symbol "Interface_Expansion:PCA9555PW"
+      (pin (name "A0") (number "1")) (pin (name "A1") (number "2")) (pin (name "A2") (number "3"))
+      (pin (name "P0.0") (number "4")) (pin (name "P0.1") (number "5")) (pin (name "P0.2") (number "6"))
+      (pin (name "P0.3") (number "7")) (pin (name "P0.4") (number "8")) (pin (name "P0.5") (number "9"))
+      (pin (name "P0.6") (number "10")) (pin (name "P0.7") (number "11"))
+      (pin (name "P1.0") (number "12")) (pin (name "P1.1") (number "13")) (pin (name "P1.2") (number "14"))
+      (pin (name "P1.3") (number "15")) (pin (name "P1.4") (number "16")) (pin (name "P1.5") (number "17"))
+      (pin (name "P1.6") (number "18")) (pin (name "P1.7") (number "19"))
+      (pin (name "INT") (number "20")) (pin (name "RESET") (number "21"))
+      (pin (name "SCL") (number "22")) (pin (name "SDA") (number "23"))
+      (pin (name "VCC") (number "24")) (pin (name "GND") (number "25"))
+      (property "Reference" "U36") (property "Value" "PCA9555PW")
+      (property "Footprint" "Package_SO:TSSOP-24_4.4x7.8mm_P0.65mm")
+    )
+
+    (symbol "MCU_STM32:STM32G030F6P6"
+      (pin (name "PB8") (number "1")) (pin (name "PB9") (number "2"))
+      (pin (name "PB0") (number "3")) (pin (name "PB1") (number "4"))
+      (pin (name "PB2") (number "5")) (pin (name "PB10") (number "6"))
+      (pin (name "PB11") (number "7")) (pin (name "VSS") (number "8"))
+      (pin (name "VDD") (number "9")) (pin (name "PA0") (number "10"))
+      (pin (name "PA1") (number "11")) (pin (name "PA2") (number "12"))
+      (pin (name "PA3") (number "13")) (pin (name "PA4") (number "14"))
+      (pin (name "PA5") (number "15")) (pin (name "PA6") (number "16"))
+      (pin (name "PA7") (number "17")) (pin (name "PA8") (number "18"))
+      (pin (name "PA9") (number "19")) (pin (name "PA10") (number "20"))
+      (property "Reference" "U37") (property "Value" "STM32G030F6P6")
+      (property "Footprint" "Package_SO:TSSOP-20_4.4x6.5mm_P0.65mm")
+    )
+
+    (symbol "Sensor:BME688"
+      (pin (name "SDA") (number "1")) (pin (name "SCL") (number "2"))
+      (pin (name "VDD") (number "3")) (pin (name "GND") (number "4"))
+      (pin (name "CS") (number "5")) (pin (name "INT") (number "6"))
+      (property "Reference" "U38") (property "Value" "BME688")
+      (property "Footprint" "Package_LGA:LGA-8_3x3mm_P0.8mm")
+    )
+
+    (symbol "Sensor_IMU:ICM-42688-P"
+      (pin (name "SDA") (number "1")) (pin (name "SCL") (number "2"))
+      (pin (name "VDD") (number "3")) (pin (name "GND") (number "4"))
+      (pin (name "INT1") (number "5")) (pin (name "INT2") (number "6"))
+      (property "Reference" "U39") (property "Value" "ICM-42688-P")
+      (property "Footprint" "Package_LGA:LGA-14_3x2.5mm_P0.5mm")
+    )
+
+    (symbol "Sensor_Current:INA219"
+      (pin (name "VIN+") (number "1")) (pin (name "VIN-") (number "2"))
+      (pin (name "SCL") (number "3")) (pin (name "SDA") (number "4"))
+      (pin (name "GND") (number "5")) (pin (name "VCC") (number "6"))
+      (property "Reference" "U40") (property "Value" "INA219")
+      (property "Footprint" "Package_SO:MSOP-8_3x3mm_P0.65mm")
+    )
+
+    (symbol "Sensor_Temperature:TMP102"
+      (pin (name "SDA") (number "1")) (pin (name "SCL") (number "2"))
+      (pin (name "GND") (number "3")) (pin (name "ADD0") (number "4"))
+      (pin (name "V+") (number "5")) (pin (name "ALERT") (number "6"))
+      (property "Reference" "U41") (property "Value" "TMP102")
+      (property "Footprint" "Package_SO:SOT-563-6")
+    )
+
+    (symbol "Memory_FRAM:MB85RC256V"
+      (pin (name "A0") (number "1")) (pin (name "A1") (number "2"))
+      (pin (name "A2") (number "3")) (pin (name "GND") (number "4"))
+      (pin (name "SDA") (number "5")) (pin (name "SCL") (number "6"))
+      (pin (name "WP") (number "7")) (pin (name "VCC") (number "8"))
+      (property "Reference" "U42") (property "Value" "MB85RC256V")
+      (property "Footprint" "Package_SO:TSSOP-8_4.4x3mm_P0.65mm")
+    )
+
+    (symbol "Connector_Generic:Conn_02x07_Odd_Even"
+      (pin (name "Pin_1") (number "1")) (pin (name "Pin_2") (number "2"))
+      (pin (name "Pin_3") (number "3")) (pin (name "Pin_4") (number "4"))
+      (pin (name "Pin_5") (number "5")) (pin (name "Pin_6") (number "6"))
+      (pin (name "Pin_7") (number "7")) (pin (name "Pin_8") (number "8"))
+      (pin (name "Pin_9") (number "9")) (pin (name "Pin_10") (number "10"))
+      (pin (name "Pin_11") (number "11")) (pin (name "Pin_12") (number "12"))
+      (pin (name "Pin_13") (number "13")) (pin (name "Pin_14") (number "14"))
+      (property "Reference" "J11") (property "Value" "DEV_HEADER_14pin")
+      (property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_2x07_P2.54mm_Vertical")
+    )
+
+    (symbol "Device:C" (pin (name "1") (number "1")) (pin (name "2") (number "2")) (property "Reference" "C500") (property "Value" "100nF") (property "Footprint" "Capacitor_SMD:C_0402"))
+    (symbol "Device:R" (pin (name "1") (number "1")) (pin (name "2") (number "2")) (property "Reference" "R500") (property "Value" "10k") (property "Footprint" "Resistor_SMD:R_0402"))
+    (symbol "Device:R" (pin (name "1") (number "1")) (pin (name "2") (number "2")) (property "Reference" "R501") (property "Value" "2.2k") (property "Footprint" "Resistor_SMD:R_0402"))
+  )
+
+  ; ==================== Размещение компонентов ====================
+  (symbol (lib_id "Interface_Expansion:PCA9555PW") (at 150 150) (unit 1))
+  (symbol (lib_id "MCU_STM32:STM32G030F6P6") (at 400 150) (unit 1))
+  (symbol (lib_id "Sensor:BME688") (at 150 300) (unit 1))
+  (symbol (lib_id "Sensor_IMU:ICM-42688-P") (at 400 300) (unit 1))
+  (symbol (lib_id "Sensor_Current:INA219") (at 150 400) (unit 1))
+  (symbol (lib_id "Sensor_Temperature:TMP102") (at 400 400) (unit 1))
+  (symbol (lib_id "Memory_FRAM:MB85RC256V") (at 150 500) (unit 1))
+  (symbol (lib_id "Connector_Generic:Conn_02x07_Odd_Even") (at 400 500) (unit 1))
+
+  ; Развязка
+  (symbol (lib_id "Device:C") (at 200 100) (unit 1) (property "Reference" "C501") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 250 100) (unit 1) (property "Reference" "C502") (property "Value" "100nF"))
+  (symbol (lib_id "Device:R") (at 300 200) (unit 1) (property "Reference" "R502") (property "Value" "10k"))
+
+  ; ==================== Соединения ====================
+  ; === Питание и земля ===
+  (power_symbol "GND" (at 50 50))
+  (power_symbol "+3.3V" (at 50 100))
+
+  ; PCA9555
+  (wire (pts (xy 150 120) (xy 150 110))) (global_label "VCC_3V3_MCU" (at 150 110))
+  (wire (pts (xy 150 180) (xy 150 190))) (power_symbol "GND" (at 150 190))
+  (wire (pts (xy 150 150) (xy 100 150))) (global_label "I2C0_SCL" (at 100 150))
+  (wire (pts (xy 150 160) (xy 100 160))) (global_label "I2C0_SDA" (at 100 160))
+  (wire (pts (xy 150 170) (xy 100 170))) (global_label "GPIO_EXP_INT" (at 100 170))
+  (wire (pts (xy 150 140) (xy 100 140))) (global_label "GPIO0_PCIE_RST" (at 100 140))
+  (wire (pts (xy 150 130) (xy 100 130))) (global_label "GPIO1_USB_HUB_RST" (at 100 130))
+
+  ; СУПЕРВИЗОР STM32G030
+  (wire (pts (xy 400 120) (xy 400 110))) (global_label "VCC_3V3_MCU" (at 400 110))
+  (wire (pts (xy 400 180) (xy 400 190))) (power_symbol "GND" (at 400 190))
+  (wire (pts (xy 400 150) (xy 350 150))) (global_label "I2C0_SCL" (at 350 150))
+  (wire (pts (xy 400 160) (xy 350 160))) (global_label "I2C0_SDA" (at 350 160))
+  (wire (pts (xy 400 170) (xy 350 170))) (global_label "SUPERVISOR_INT" (at 350 170))
+  (wire (pts (xy 400 130) (xy 350 130))) (global_label "SUPERVISOR_UART_TX" (at 350 130))
+  (wire (pts (xy 400 140) (xy 350 140))) (global_label "SUPERVISOR_UART_RX" (at 350 140))
+  (wire (pts (xy 400 100) (xy 400 90))) (global_label "SWD_CLK" (at 400 90))
+  (wire (pts (xy 400 95) (xy 400 85))) (global_label "SWD_IO" (at 400 85))
+
+  ; Датчики (все на общей I2C, адресация разная)
+  (wire (pts (xy 150 300) (xy 100 300))) (global_label "I2C0_SDA" (at 100 300))
+  (wire (pts (xy 150 310) (xy 100 310))) (global_label "I2C0_SCL" (at 100 310))
+  (wire (pts (xy 150 330) (xy 150 340))) (power_symbol "+3.3V" (at 150 340))
+  (wire (pts (xy 150 320) (xy 150 350))) (power_symbol "GND" (at 150 350))
+
+  (wire (pts (xy 400 300) (xy 350 300))) (global_label "I2C0_SDA" (at 350 300))
+  (wire (pts (xy 400 310) (xy 350 310))) (global_label "I2C0_SCL" (at 350 310))
+  (wire (pts (xy 400 330) (xy 400 340))) (power_symbol "+3.3V" (at 400 340))
+  (wire (pts (xy 400 320) (xy 400 350))) (power_symbol "GND" (at 400 350))
+
+  ; INA219 (измерение тока батареи и 5V)
+  (wire (pts (xy 150 400) (xy 100 400))) (global_label "I2C0_SDA" (at 100 400))
+  (wire (pts (xy 150 410) (xy 100 410))) (global_label "I2C0_SCL" (at 100 410))
+  (wire (pts (xy 150 420) (xy 150 430))) (power_symbol "+3.3V" (at 150 430))
+  (wire (pts (xy 150 440) (xy 150 450))) (power_symbol "GND" (at 150 450))
+  (wire (pts (xy 150 400) (xy 150 460))) (global_label "INA219_BAT_I" (at 150 460)) ; шунт между VIN+ и VIN-
+
+  ; TMP102 (температура CM5)
+  (wire (pts (xy 400 400) (xy 350 400))) (global_label "I2C0_SDA" (at 350 400))
+  (wire (pts (xy 400 410) (xy 350 410))) (global_label "I2C0_SCL" (at 350 410))
+  (wire (pts (xy 400 420) (xy 400 430))) (power_symbol "+3.3V" (at 400 430))
+  (wire (pts (xy 400 440) (xy 400 450))) (power_symbol "GND" (at 400 450))
+
+  ; FRAM (Crash Dumper)
+  (wire (pts (xy 150 500) (xy 100 500))) (global_label "I2C0_SDA" (at 100 500))
+  (wire (pts (xy 150 510) (xy 100 510))) (global_label "I2C0_SCL" (at 100 510))
+  (wire (pts (xy 150 520) (xy 150 530))) (power_symbol "+3.3V" (at 150 530))
+  (wire (pts (xy 150 540) (xy 150 550))) (power_symbol "GND" (at 150 550))
+
+  ; DEV-заголовок (подключение к SWD и UART)
+  (wire (pts (xy 400 500) (xy 400 480))) ; Pin1 = +3.3V
+  (power_symbol "+3.3V" (at 400 480))
+  (wire (pts (xy 400 500) (xy 400 520))) ; Pin2 = GND
+  (power_symbol "GND" (at 400 520))
+  (wire (pts (xy 400 540) (xy 400 560))) ; Pin3 = SWD_CLK
+  (global_label "SWD_CLK" (at 400 560))
+  (wire (pts (xy 400 550) (xy 400 570))) ; Pin4 = SWD_IO
+  (global_label "SWD_IO" (at 400 570))
+  (wire (pts (xy 400 580) (xy 400 600))) ; Pin5 = JTAG_TCK (резерв)
+  (global_label "JTAG_TCK" (at 400 600))
+  (wire (pts (xy 400 590) (xy 400 610))) ; Pin6 = JTAG_TMS
+  (global_label "JTAG_TMS" (at 400 610))
+  (wire (pts (xy 400 620) (xy 400 640))) ; Pin10 = USB_DN
+  (global_label "USB_TO_DEV_DN" (at 400 640))
+  (wire (pts (xy 400 630) (xy 400 650))) ; Pin11 = USB_DP
+  (global_label "USB_TO_DEV_DP" (at 400 650))
+  (wire (pts (xy 400 660) (xy 400 680))) ; Pin12 = UART_TX
+  (global_label "SUPERVISOR_UART_TX" (at 400 680))
+  (wire (pts (xy 400 670) (xy 400 690))) ; Pin13 = UART_RX
+  (global_label "SUPERVISOR_UART_RX" (at 400 690))
+  (wire (pts (xy 400 700) (xy 400 720))) ; Pin14 = GND
+  (power_symbol "GND" (at 400 720))
+
+  ; --- Подтяжка nRST STM32 ---
+  (wire (pts (xy 300 200) (xy 300 180)))
+  (wire (pts (xy 300 180) (xy 400 180))) ; к NRST (не показан явно, но обычно PA0)
+  (wire (pts (xy 300 200) (xy 300 220)))
+  (power_symbol "+3.3V" (at 300 220))
+
+  ; --- Глобальные земли для развязки ---
+  (power_symbol "GND" (at 200 120))
+  (wire (pts (xy 200 100) (xy 200 120)))
+  (power_symbol "GND" (at 250 120))
+  (wire (pts (xy 250 100) (xy 250 120)))
+)
