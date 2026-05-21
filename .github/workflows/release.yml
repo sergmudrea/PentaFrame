@@ -1,68 +1,101 @@
-name: Release Penta OS
+name: CD - Build and Release
 
 on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:  # allow manual trigger
 
 jobs:
-  release:
+  containers:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
       packages: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
-          platforms: arm64
+          platforms: arm64,amd64
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to GitHub Container Registry
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push container images
-        run: make containers
-        env:
-          DOCKER_TAG: ${{ github.ref_name }}
+      - name: Build and push toolbox images
+        run: |
+          for img in debian-stable arch-toolbox fedora-toolbox kali winbox python-slim node-slim homebrew; do
+            if [ -f "containers/$img/Dockerfile" ]; then
+              docker buildx build \
+                --platform linux/arm64,linux/amd64 \
+                -t ghcr.io/${{ github.repository }}/$img:latest \
+                -t ghcr.io/${{ github.repository }}/$img:${{ github.ref_name }} \
+                --push \
+                containers/$img
+            fi
+          done
+
+  os-image:
+    needs: containers
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [arm64, amd64]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Install build dependencies
         run: |
           sudo apt update
-          sudo apt install -y debootstrap btrfs-progs qemu-user-static binfmt-support \
-            systemd-container curl wget git make gcc-aarch64-linux-gnu parted kpartx rsync
+          sudo apt install -y debootstrap btrfs-progs qemu-user-static binfmt-support systemd-container curl wget git make parted kpartx rsync xz-utils
 
-      - name: Build OS image (arm64)
-        run: sudo make image ARCH=arm64
+      - name: Build OS image (${{ matrix.arch }})
+        run: |
+          sudo ./build.sh --arch ${{ matrix.arch }} --variant desktop --output output --no-containers
 
-      - name: Build OS image (amd64)
-        run: sudo make image ARCH=amd64
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: penta-os-${{ matrix.arch }}
+          path: output/*.img.xz
+
+  release:
+    needs: os-image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
 
       - name: Generate checksums
         run: |
-          cd output
-          sha256sum *.img.xz > SHA256SUMS
+          cd artifacts
+          find . -name '*.img.xz' -exec sha256sum {} \; > SHA256SUMS
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: Penta OS ${{ github.ref_name }}
           body: |
-            Release ${{ github.ref_name }} of Penta OS.
-
+            Automated release of Penta OS ${{ github.ref_name }}.
             See [CHANGELOG.md](CHANGELOG.md) for details.
           files: |
-            output/*.img.xz
-            output/SHA256SUMS
+            artifacts/**/*.img.xz
+            artifacts/SHA256SUMS
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
