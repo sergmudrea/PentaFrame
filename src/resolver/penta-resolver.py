@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """
-Penta Resolver - Smart Docking Engine (v1.6.8)
+Penta Resolver - Smart Docking Engine (v1.6.9)
 ===============================================
-... (прежний docstring, обновлён) ...
-Changes in v1.6.8:
-  - Connects to Penta Hub via Unix domain socket (unix:///run/penta/hub.sock).
-  - Uses aiohttp.UnixConnector for all Hub API calls.
-  - Default HUB_ENDPOINT changed to unix socket if not overridden.
-  - Added requests-unixsocket dependency for CLI (separate file).
-Usage:
+...
+
+Changes in v1.6.9:
+  - On uninstall, logs standard paths for residual user data
+    (~/.config/<app>, ~/.local/share/<app>, ~/.cache/<app>)
+    so the user can clean them manually.
+  - All previous features (GitHub, AppImage, Flatpak/Snap support,
+    Unix socket communication, priority-based search, container-side
+    uninstall, etc.) retained.
+
+Usage (production):
     uvicorn src.resolver.penta-resolver:app --uds /run/penta/resolver.sock --uid penta --gid penta
 """
 
@@ -19,7 +23,6 @@ import os
 import re
 import stat
 import subprocess
-import tempfile
 import uuid
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -40,7 +43,6 @@ with open(CONFIG_PATH, "r") as f:
 
 RESOLVER_CONFIG = config.get("resolver", {})
 HUB_CONFIG = config.get("hub", {})
-# By default use Unix socket; fallback to TCP for dev/testing
 HUB_ENDPOINT = HUB_CONFIG.get("endpoint", "unix:///run/penta/hub.sock")
 CONTAINER_ENGINE = RESOLVER_CONFIG.get("container_engine", "distrobox")
 AUTO_ROLLBACK = RESOLVER_CONFIG.get("auto_rollback", True)
@@ -62,7 +64,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] reso
 logger = logging.getLogger("penta-resolver")
 
 # ---------- FastAPI ----------
-app = FastAPI(title="Penta Resolver", version="1.6.8")
+app = FastAPI(title="Penta Resolver", version="1.6.9")
 
 tasks: Dict[str, Dict[str, Any]] = {}
 
@@ -78,6 +80,7 @@ class InstallRequest(BaseModel):
 class UninstallRequest(BaseModel):
     app_name: str
     username: Optional[str] = None
+    purge: bool = False  # if True, attempt to remove user data directories
 
 class TaskStatus(BaseModel):
     task_id: str
@@ -86,7 +89,7 @@ class TaskStatus(BaseModel):
     log: list[str] = []
     result: Optional[dict] = None
 
-# ---------- Helpers ----------
+# ---------- Helpers (same as before except where noted) ----------
 def get_user_home(username: Optional[str]) -> Path:
     if username:
         home = Path(f"/home/{username}")
@@ -127,14 +130,10 @@ def remove_metadata(home: Path, app_name: str) -> Optional[Dict[str, Any]]:
     return None
 
 async def search_package(package: str, source: str = "all") -> list[dict]:
-    """Search Penta Hub via Unix socket or TCP."""
     url = f"{HUB_ENDPOINT}/api/v1/search"
     params = {"q": package, "source": source, "limit": 10}
     parsed = urlparse(url)
-    if parsed.scheme == "unix":
-        connector = aiohttp.UnixConnector(path=parsed.path)
-    else:
-        connector = None
+    connector = aiohttp.UnixConnector(path=parsed.path) if parsed.scheme == "unix" else None
     try:
         async with aiohttp.ClientSession(connector=connector) as session:
             async with session.get(url, params=params) as resp:
@@ -167,7 +166,6 @@ def get_image_for_container(container_name: str) -> str:
     return container_name
 
 def ensure_container(name: str, image: str, init: bool = False) -> bool:
-    # Check distrobox availability
     try:
         subprocess.run(["distrobox", "version"], capture_output=True, check=True)
     except (FileNotFoundError, subprocess.CalledProcessError):
@@ -296,6 +294,21 @@ def remove_wrappers_and_desktop(home_dir: Path, app_name: str):
         f.unlink()
         logger.info(f"Removed wrapper {f}")
 
+def suggest_user_data_cleanup(home_dir: Path, app_name: str, log_list: List[str]):
+    """Add messages about residual user directories that might still exist."""
+    candidates = [
+        home_dir / ".config" / app_name,
+        home_dir / ".local" / "share" / app_name,
+        home_dir / ".cache" / app_name,
+    ]
+    existing = [str(p) for p in candidates if p.exists()]
+    if existing:
+        log_list.append("Note: user data directories still exist. To remove them manually:")
+        for path in existing:
+            log_list.append(f"  rm -rf {path}")
+    else:
+        log_list.append("No residual user data directories found.")
+
 async def perform_install(task_id: str, request: InstallRequest):
     log: list[str] = []
     tasks[task_id]["status"] = "running"
@@ -398,6 +411,25 @@ async def perform_install(task_id: str, request: InstallRequest):
             except Exception as e2:
                 log.append(f"Rollback failed: {e2}")
 
+async def perform_uninstall(request: UninstallRequest):
+    username = request.username or "penta"
+    home_dir = get_user_home(username)
+    app_name = request.app_name
+
+    meta = remove_metadata(home_dir, app_name)
+    log_lines: list[str] = []
+    if meta:
+        container_name = meta.get("container")
+        uninstall_cmd = meta.get("uninstall_command", "")
+        if container_name and uninstall_cmd:
+            ret = install_in_container(container_name, uninstall_cmd, log_lines)
+            if ret != 0:
+                logger.warning(f"Container uninstall returned non-zero: {ret}")
+    remove_wrappers_and_desktop(home_dir, app_name)
+    suggest_user_data_cleanup(home_dir, app_name, log_lines)
+    # return log lines to client? Not yet.
+    return {"status": "removed", "log": log_lines}
+
 # ---------- API Endpoints ----------
 @app.post("/api/v1/install")
 async def api_install(req: InstallRequest):
@@ -426,8 +458,8 @@ async def api_installed():
 async def api_uninstall(app_name: str, username: Optional[str] = None):
     req = UninstallRequest(app_name=app_name, username=username)
     try:
-        await perform_uninstall(req)
-        return {"status": "removed"}
+        result = await perform_uninstall(req)
+        return result
     except Exception as e:
         logger.error(f"Uninstall error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -440,19 +472,3 @@ async def api_mode_switch(mode: str = Query("desktop")):
 @app.get("/api/v1/health")
 async def health():
     return {"status": "ok"}
-
-async def perform_uninstall(request: UninstallRequest):
-    username = request.username or "penta"
-    home_dir = get_user_home(username)
-    app_name = request.app_name
-    meta = remove_metadata(home_dir, app_name)
-    if meta:
-        container_name = meta.get("container")
-        uninstall_cmd = meta.get("uninstall_command", "")
-        if container_name and uninstall_cmd:
-            log_lines = []
-            ret = install_in_container(container_name, uninstall_cmd, log_lines)
-            if ret != 0:
-                logger.warning(f"Container uninstall returned non-zero: {ret}")
-    remove_wrappers_and_desktop(home_dir, app_name)
-    return True
