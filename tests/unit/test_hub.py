@@ -1,24 +1,25 @@
-import pytest
 import sys
-import os
+import sqlite3
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 
-# Ensure src is importable
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src" / "hub"))
-
+import pytest
 from fastapi.testclient import TestClient
 
-# We'll patch the global db and crawlers before importing the app module
-import sqlite3
-from unittest.mock import patch, MagicMock, AsyncMock
+# Add hub package to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src" / "hub"))
 
-# ---------- Mock database ----------
+# We need to mock the global db and plugin loader before importing the app.
+# The app module creates a global `db` and calls `init_schema` at import time,
+# so we must replace `get_db` to return an in‑memory database.
+
 @pytest.fixture
-def mock_db():
-    """Create an in-memory SQLite database with schema."""
+def in_memory_db():
+    """Return a fresh in-memory SQLite database with the Penta Hub schema."""
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS packages (
             id TEXT PRIMARY KEY,
@@ -33,58 +34,108 @@ def mock_db():
             dependencies TEXT,
             last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE INDEX IF NOT EXISTS idx_pkg_name ON packages(name);
+        CREATE INDEX IF NOT EXISTS idx_pkg_source ON packages(source);
     """)
-    conn.commit()
-    # Insert a test package
-    conn.execute("INSERT INTO packages VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (
-        "test-apt-firefox", "firefox", "apt", "115.7.0", "Mozilla Firefox",
-        "all", "debian-stable", "sudo apt install -y firefox", "", "[]", "2025-01-01"
-    ))
     conn.commit()
     yield conn
     conn.close()
 
-# We need to replace the global db with our mock before importing the app
-# The app module uses `get_db` function which returns a connection to the file.
-# We will patch `get_db` to return our in-memory connection.
-# Also we need to patch `load_plugins` and `get_crawlers` to avoid real crawling.
-
 @pytest.fixture
-def client(mock_db):
-    with patch('penta-hub.get_db', return_value=mock_db):
-        # Also patch the plugin loader to return empty dicts
+def client(in_memory_db):
+    """Create a FastAPI test client with mocked database and plugins."""
+    # Patch get_db so every call returns our in‑memory connection
+    with patch('penta-hub.get_db', return_value=in_memory_db):
+        # Stop plugin loading and crawlers
         with patch('penta-hub.load_plugins', return_value={}):
             with patch('penta-hub.get_crawlers', return_value={}):
-                from penta-hub import app
-                # Override startup event to avoid periodic indexing
-                app.router.on_startup = []
-                with TestClient(app) as c:
-                    yield c
+                # We must also prevent the background periodic task from starting
+                with patch('penta-hub.periodic_index', return_value=None):
+                    # Import the app after patches are in place
+                    import penta_hub
+                    # Clear the startup event so it doesn't try to run the periodic task
+                    penta_hub.app.router.on_startup.clear()
+                    # Override the global db reference inside the module (if any)
+                    penta_hub.db = in_memory_db
+                    with TestClient(penta_hub.app) as c:
+                        yield c
 
-class TestSearchEndpoint:
-    def test_search_existing_package(self, client):
-        response = client.get("/api/v1/search?q=firefox")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data["results"]) == 1
-        assert data["results"][0]["name"] == "firefox"
-        assert data["results"][0]["source"] == "apt"
+# ---------- Test helpers ----------
+def insert_package(db: sqlite3.Connection, pkg_id: str, name: str, source: str,
+                   version: str = "1.0", description: str = "", container: str = "debian-stable",
+                   install_command: str = "apt install -y"):
+    db.execute(
+        "INSERT OR REPLACE INTO packages VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (pkg_id, name, source, version, description, "all", container, install_command, "", "[]", "2025-01-01")
+    )
+    db.commit()
 
-    def test_search_non_existing_package(self, client):
-        response = client.get("/api/v1/search?q=nonexisting")
-        assert response.status_code == 200
-        assert len(response.json()["results"]) == 0
+# ---------- Tests ----------
+class TestHealth:
+    def test_health(self, client):
+        resp = client.get("/api/v1/health")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "ok"
+        assert "timestamp" in data
 
-    def test_search_filter_by_source(self, client):
-        # Add an aur package
-        import sqlite3
-        conn = client.app.extra['db'] if hasattr(client.app, 'extra') else None
-        # Actually we need to get the mock db used. We'll insert directly.
-        # Since we patched get_db, the client uses the mock_db from fixture.
-        # But the test client doesn't expose it directly. We'll add a second package via the same db.
-        # We'll use the mock_db from outer scope (pytest fixture). But we are inside the test function,
-        # so we can't access it directly. We'll use a separate client call? No.
-        # Instead, we can retrieve the db from the app state. The app module's get_db is patched,
-        # and the mock_db object is accessible via the fixture. We need to share it.
-        # We'll define client fixture to attach mock_db to app.state.
-        pass  # The test structure will be refined later
+class TestSearch:
+    def test_no_results(self, client):
+        resp = client.get("/api/v1/search?q=nonexistent")
+        assert resp.status_code == 200
+        assert resp.json()["results"] == []
+
+    def test_find_by_name(self, client, in_memory_db):
+        insert_package(in_memory_db, "p1", "firefox", "apt", version="120.0")
+        resp = client.get("/api/v1/search?q=firefox")
+        assert resp.status_code == 200
+        results = resp.json()["results"]
+        assert len(results) == 1
+        assert results[0]["name"] == "firefox"
+        assert results[0]["source"] == "apt"
+        assert results[0]["version"] == "120.0"
+
+    def test_search_case_insensitive(self, client, in_memory_db):
+        insert_package(in_memory_db, "p1", "FireFox", "apt", version="1.0")
+        resp = client.get("/api/v1/search?q=firefox")
+        assert len(resp.json()["results"]) == 1  # LIKE is case-insensitive in SQLite
+
+    def test_filter_by_source(self, client, in_memory_db):
+        insert_package(in_memory_db, "p1", "metasploit", "aur", version="6.4.1")
+        insert_package(in_memory_db, "p2", "metasploit", "apt", version="5.0.0")
+        resp = client.get("/api/v1/search?q=metasploit&source=aur")
+        results = resp.json()["results"]
+        assert len(results) == 1
+        assert results[0]["source"] == "aur"
+
+    def test_limit(self, client, in_memory_db):
+        for i in range(5):
+            insert_package(in_memory_db, f"p{i}", f"pkg{i}", "apt")
+        resp = client.get("/api/v1/search?q=pkg&limit=3")
+        assert len(resp.json()["results"]) == 3
+
+class TestGetPackage:
+    def test_existing_package(self, client, in_memory_db):
+        insert_package(in_memory_db, "p1", "curl", "apt", version="7.88")
+        resp = client.get("/api/v1/package/p1")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["name"] == "curl"
+        assert data["version"] == "7.88"
+
+    def test_non_existing_package(self, client):
+        resp = client.get("/api/v1/package/fake-id")
+        assert resp.status_code == 404
+
+class TestReindex:
+    def test_reindex_triggers(self, client):
+        # Reindex spawns an async task; we just check the response
+        resp = client.post("/api/v1/reindex", json={"source": "apt"})
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "reindex started"
+
+class TestPlugins:
+    def test_plugins_empty(self, client):
+        resp = client.get("/api/v1/plugins")
+        assert resp.status_code == 200
+        assert resp.json()["plugins"] == {}
