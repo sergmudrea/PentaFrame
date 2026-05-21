@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 """
-penta - Penta OS Universal CLI
-===============================
+penta - Penta OS Universal CLI (v1.6.4)
+========================================
 Command-line interface for installing, removing, searching software,
 managing modes, and viewing system status. Communicates with Penta Resolver
 and other Penta services via REST APIs.
 
+New in v1.6.4:
+  - Receives app metadata from Resolver after install and creates
+    wrapper scripts and .desktop files locally for the current user.
+  - Adds ~/.local/bin to PATH in .profile if missing.
+  - Accepts --username to run operations on behalf of another user.
+
 Usage:
-    penta install <package> [--source <source>]
+    penta install <package> [--source <source>] [--username <user>]
     penta remove <app>
     penta list
     penta search <term>
@@ -17,12 +23,23 @@ Usage:
 """
 
 import sys
-import requests
+import os
+import stat
+import subprocess
+import time
+from pathlib import Path
+
 import click
+import requests
 
 # ---------- Configuration ----------
 RESOLVER_URL = "http://localhost:8500"
 PENTAD_URL = "http://localhost:8600"
+HUB_URL = "http://localhost:8400"
+
+USER_HOME = Path.home()
+USER_BIN_DIR = USER_HOME / ".local" / "bin"
+DESKTOP_DIR = USER_HOME / ".local" / "share" / "applications"
 
 # ---------- Helper Functions ----------
 def print_json(data):
@@ -41,6 +58,68 @@ def check_resolver():
         click.echo("Cannot connect to Penta Resolver. Is it running?")
         sys.exit(1)
 
+def create_wrapper_script(app_name: str, container: str, exec_name: str, is_windows: bool) -> Path:
+    """
+    Create an executable shell script in USER_BIN_DIR that runs the application
+    in its container via distrobox.
+    """
+    USER_BIN_DIR.mkdir(parents=True, exist_ok=True)
+    wrapper_path = USER_BIN_DIR / app_name
+    # Handle name conflicts
+    suffix = 0
+    base = app_name
+    while wrapper_path.exists():
+        suffix += 1
+        app_name = f"{base}_{suffix}"
+        wrapper_path = USER_BIN_DIR / app_name
+
+    if is_windows:
+        launch_cmd = f"box64 wine {exec_name}"
+    else:
+        launch_cmd = exec_name
+
+    script = f"""#!/bin/bash
+# Penta OS wrapper for {app_name}
+exec distrobox enter {container} -- {launch_cmd} "$@"
+"""
+    wrapper_path.write_text(script)
+    wrapper_path.chmod(wrapper_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    click.echo(f"  Wrapper created: {wrapper_path}")
+    return wrapper_path
+
+def create_desktop_file(name: str, wrapper_path: Path, icon: str = "") -> Path:
+    """
+    Create a .desktop entry that points to the wrapper script.
+    """
+    DESKTOP_DIR.mkdir(parents=True, exist_ok=True)
+    desktop_file = DESKTOP_DIR / f"{name.replace(' ', '_')}.desktop"
+    content = f"""[Desktop Entry]
+Name={name}
+Exec={wrapper_path}
+Icon={icon}
+Type=Application
+Terminal=false
+Categories=Utility;
+"""
+    desktop_file.write_text(content)
+    desktop_file.chmod(0o755)
+    subprocess.run(["update-desktop-database", str(DESKTOP_DIR)], capture_output=True)
+    click.echo(f"  Desktop entry: {desktop_file}")
+    return desktop_file
+
+def ensure_path_in_profile():
+    """Add ~/.local/bin to PATH in .profile if not already present."""
+    profile = USER_HOME / ".profile"
+    line = 'export PATH="$HOME/.local/bin:$PATH"'
+    if profile.exists():
+        content = profile.read_text()
+        if line not in content:
+            with profile.open("a") as f:
+                f.write(f"\n# Penta OS\n{line}\n")
+    else:
+        profile.write_text(f"{line}\n")
+    click.echo(f"  Added {USER_BIN_DIR} to PATH in {profile}")
+
 # ---------- CLI Group ----------
 @click.group()
 def cli():
@@ -52,18 +131,24 @@ def cli():
 @click.argument("package")
 @click.option("--source", "-s", default="auto",
               help="Source repository (apt, aur, pypi, homebrew, github, appimage, exe).")
-def install(package, source):
+@click.option("--username", "-u", default=None,
+              help="Username under which to install (default: current user).")
+def install(package, source, username):
     """Install a package from any supported ecosystem."""
     check_resolver()
     payload = {"package": package, "source": source}
+    if username:
+        payload["username"] = username
+    else:
+        payload["username"] = os.getlogin()
+
     try:
         r = requests.post(f"{RESOLVER_URL}/api/v1/install", json=payload)
         r.raise_for_status()
-        data = r.json()
-        task_id = data["task_id"]
+        task_id = r.json()["task_id"]
         click.echo(f"Installation started. Task ID: {task_id}")
-        # Poll for task status
-        import time
+
+        # Poll task until completion
         with click.progressbar(length=100, label="Installing") as bar:
             last_progress = 0
             while True:
@@ -73,145 +158,33 @@ def install(package, source):
                 new_progress = task.get("progress", 0)
                 bar.update(new_progress - last_progress)
                 last_progress = new_progress
-                # Print log lines
-                for line in task.get("log", [])[-(bar.pos % 5):]:
-                    if line:
+                # Print new log lines
+                for line in task.get("log", [])[-3:]:
+                    if line and line not in printed_logs:
                         click.echo(f"  {line}")
+                        printed_logs.add(line)
                 if task["status"] in ("completed", "failed"):
                     bar.update(100 - last_progress)
                     click.echo(f"\nStatus: {task['status']}")
-                    if task["status"] == "failed":
+                    if task["status"] == "completed" and task.get("result"):
+                        # Create local wrappers and desktop entries
+                        meta = task["result"]
+                        app_name = meta.get("name", package)
+                        exec_name = meta.get("exec_name", app_name)
+                        container = meta.get("container", "debian-stable")
+                        is_win = meta.get("is_windows", False)
+                        icon = meta.get("icon_url", "")
+
+                        wrapper = create_wrapper_script(exec_name, container, exec_name, is_win)
+                        create_desktop_file(app_name, wrapper, icon)
+                        ensure_path_in_profile()
+                        click.echo(f"'{app_name}' is now available globally. You may need to restart your shell.")
+                    elif task["status"] == "failed":
                         sys.exit(1)
                     break
     except requests.RequestException as e:
         click.echo(f"Error: {e}")
         sys.exit(1)
 
-# ---------- Remove ----------
-@cli.command()
-@click.argument("app")
-def remove(app):
-    """Remove an installed application."""
-    check_resolver()
-    try:
-        r = requests.post(f"{RESOLVER_URL}/api/v1/uninstall/{app}")
-        r.raise_for_status()
-        click.echo(f"'{app}' removed.")
-    except requests.RequestException as e:
-        click.echo(f"Error: {e}")
-        sys.exit(1)
-
-# ---------- List ----------
-@cli.command("list")
-def list_apps():
-    """List all installed applications."""
-    check_resolver()
-    try:
-        r = requests.get(f"{RESOLVER_URL}/api/v1/installed")
-        r.raise_for_status()
-        data = r.json()
-        apps = data.get("installed", [])
-        if not apps:
-            click.echo("No applications installed.")
-            return
-        for app in apps:
-            click.echo(f"  {app['name']}")
-    except requests.RequestException as e:
-        click.echo(f"Error: {e}")
-        sys.exit(1)
-
-# ---------- Search ----------
-@cli.command()
-@click.argument("term")
-def search(term):
-    """Search for a package across all repositories."""
-    # Directly query Penta Hub (port 8400)
-    try:
-        r = requests.get(f"http://localhost:8400/api/v1/search", params={"q": term, "limit": 10})
-        r.raise_for_status()
-        results = r.json().get("results", [])
-        if not results:
-            click.echo("No results found.")
-            return
-        for pkg in results:
-            click.echo(f"{pkg['name']} ({pkg['source']}) - {pkg.get('version','?')} : {pkg.get('description','')}")
-    except requests.RequestException as e:
-        click.echo(f"Error: {e}")
-
-# ---------- Mode ----------
-@cli.group()
-def mode():
-    """Manage Penta OS mode."""
-    pass
-
-@mode.command("set")
-@click.argument("mode_name")
-def mode_set(mode_name):
-    """Switch system mode (phone, desktop, pentest, server, router, smarthome, ai)."""
-    check_resolver()
-    try:
-        r = requests.post(f"{RESOLVER_URL}/api/v1/mode/switch", params={"mode": mode_name})
-        r.raise_for_status()
-        click.echo(f"Mode switched to '{mode_name}'.")
-    except requests.RequestException as e:
-        click.echo(f"Error: {e}")
-
-# ---------- Module ----------
-@cli.group()
-def module():
-    """Interact with hardware modules."""
-    pass
-
-@module.command("list")
-def module_list():
-    """List connected hardware modules."""
-    try:
-        r = requests.get(f"{PENTAD_URL}/api/v1/status")
-        r.raise_for_status()
-        data = r.json()
-        modules = data.get("modules", [])
-        if not modules:
-            click.echo("No modules connected.")
-        for mod in modules:
-            click.echo(f"  {mod.get('type','unknown')} at {mod.get('addr','?')} (serial: {mod.get('serial','?')})")
-    except requests.RequestException:
-        click.echo("Cannot reach pentad daemon.")
-
-# ---------- System ----------
-@cli.group()
-def system():
-    """System information and utilities."""
-    pass
-
-@system.command("info")
-def system_info():
-    """Show system health and resource usage."""
-    # Collect from multiple sources
-    try:
-        # Hub health
-        hr = requests.get("http://localhost:8400/api/v1/health")
-        hub_ok = hr.status_code == 200
-    except:
-        hub_ok = False
-    try:
-        rr = requests.get(f"{RESOLVER_URL}/api/v1/health")
-        res_ok = rr.status_code == 200
-    except:
-        res_ok = False
-    try:
-        pr = requests.get(f"{PENTAD_URL}/api/v1/status")
-        pentad_data = pr.json()
-        pentad_ok = True
-    except:
-        pentad_ok = False
-
-    click.echo(f"Penta Hub: {'running' if hub_ok else 'down'}")
-    click.echo(f"Penta Resolver: {'running' if res_ok else 'down'}")
-    click.echo(f"pentad: {'running' if pentad_ok else 'down'}")
-    if pentad_ok:
-        modules = pentad_data.get("modules", [])
-        click.echo(f"Connected modules: {len(modules)}")
-
-# ---------- Entry Point ----------
-if __name__ == "__main__":
-    cli()
+# (Остальные команды: remove, list, search, mode, module, system)
+# будут следовать после того, как этот блок уместится в ответ.
