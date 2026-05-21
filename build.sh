@@ -1,13 +1,12 @@
 #!/bin/bash
-# Penta OS Master Build Script (v1.6.2)
+# Penta OS Master Build Script (v1.7)
 # Builds a complete bootable image from scratch.
-# Fixes:
-#   - Creates system users penta and pentad (with i2c group).
-#   - Installs i2c-tools, python3-smbus2 (or pip smbus2).
-#   - Ensures i2c-dev module loaded at boot.
-#   - Installs all Python dependencies into rootfs.
-#   - Copies updated src with plugin_loader and unified config.
-#   - Sets PENTA_CONFIG environment variable in service files.
+# Fixes in v1.7:
+#   - Added mode-watcher daemon and its systemd service.
+#   - Ensures all Penta users and groups are created.
+#   - Copies all plugins and configuration.
+#   - Installs python dependencies globally in rootfs.
+#   - Sets PENTA_CONFIG in all service files.
 
 set -euo pipefail
 
@@ -85,7 +84,6 @@ mount -t sysfs none "$ROOTFS/sys"
 mount -o bind /dev "$ROOTFS/dev"
 mount -o bind /dev/pts "$ROOTFS/dev/pts"
 
-# QEMU cross-arch support
 HOST_ARCH=$(uname -m)
 if [[ "$HOST_ARCH" != "$ARCH" ]]; then
     case "$ARCH" in
@@ -112,10 +110,8 @@ apt install -y --no-install-recommends \
     sudo
 EOF
 
-# Enable i2c-dev module on boot
 echo "i2c-dev" >> "$ROOTFS/etc/modules-load.d/penta.conf"
 
-# Extra per-variant packages
 case "$VARIANT" in
     desktop)
         chroot "$ROOTFS" apt install -y --no-install-recommends kde-full firefox-esr || true
@@ -132,29 +128,29 @@ esac
 echo "4. Creating Penta system users..."
 chroot "$ROOTFS" useradd -r -s /bin/false -m -d /var/lib/penta penta
 chroot "$ROOTFS" useradd -r -s /bin/false -M -G i2c pentad
-# Allow penta to use docker
 chroot "$ROOTFS" usermod -aG docker penta
 
-# ---------- 5. Install Penta OS custom components ----------
+# ---------- 5. Install Penta OS components ----------
 echo "5. Installing Penta OS components..."
 mkdir -p "$ROOTFS/opt/penta" "$ROOTFS/etc/penta/plugins" "$ROOTFS/var/lib/penta/toolbox"
 
-# Copy source code
+# Copy entire src tree (hub, resolver, pentad, psyched, mode-watcher, ui, cli)
 cp -r "$SCRIPT_DIR/src/"* "$ROOTFS/opt/penta/"
-# Copy configuration
+
+# Copy configuration files
 cp "$SCRIPT_DIR/config/penta.conf.example" "$ROOTFS/etc/penta/config.yaml"
 cp "$SCRIPT_DIR/config/containers.yaml" "$ROOTFS/etc/penta/containers.yaml"
 cp "$SCRIPT_DIR/config/repository-plugins.yaml" "$ROOTFS/etc/penta/plugins/"
+cp "$SCRIPT_DIR/config/mosquitto.conf" "$ROOTFS/etc/mosquitto/conf.d/penta.conf" 2>/dev/null || true
 
 # CLI tool
 cp "$SCRIPT_DIR/src/cli/penta" "$ROOTFS/usr/local/bin/penta"
 chmod +x "$ROOTFS/usr/local/bin/penta"
 
 # Service files
-for svc in penta-hub penta-resolver pentad psyched; do
+for svc in penta-hub penta-resolver pentad psyched mode-watcher; do
     if [[ -f "$SCRIPT_DIR/services/$svc.service" ]]; then
         cp "$SCRIPT_DIR/services/$svc.service" "$ROOTFS/etc/systemd/system/"
-        # Set PENTA_CONFIG environment variable in service
         sed -i 's|^Environment=PYTHONUNBUFFERED=1|Environment=PENTA_CONFIG=/etc/penta/config.yaml PYTHONUNBUFFERED=1|' "$ROOTFS/etc/systemd/system/$svc.service"
     fi
 done
@@ -164,8 +160,8 @@ cp "$SCRIPT_DIR/src/requirements.txt" "$ROOTFS/tmp/requirements.txt"
 chroot "$ROOTFS" pip3 install --break-system-packages -r /tmp/requirements.txt
 rm "$ROOTFS/tmp/requirements.txt"
 
-# Enable services
-chroot "$ROOTFS" systemctl enable penta-hub penta-resolver pentad
+# Enable services (mode-watcher is optional but enabled by default)
+chroot "$ROOTFS" systemctl enable penta-hub penta-resolver pentad mode-watcher || true
 
 # ---------- 6. Kernel ----------
 echo "6. Installing kernel..."
