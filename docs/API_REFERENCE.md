@@ -1,11 +1,14 @@
-# Penta OS API Reference v1.6
+# Penta OS API Reference v2.0
 
-Base URLs (local development):
-- Penta Hub: `http://localhost:8400`
-- Penta Resolver: `http://localhost:8500`
-- pentad: `http://localhost:8600`
+Base URLs (local only, protected by Unix domain sockets):
 
-All responses are JSON. Authenticated endpoints (future) use Bearer tokens.
+- Penta Hub: `unix:///run/penta/hub.sock`
+- Penta Resolver: `unix:///run/penta/resolver.sock`
+- pentad: `http://localhost:8600` (still TCP until pentad socket is implemented; planned)
+
+All endpoints except health require filesystem access to the socket file.  
+The socket files are owned by `penta:penta` with mode `660`.  
+Members of the `penta` group (including the CLI, GUI, resolver, and mode‑watcher) can communicate.
 
 ---
 
@@ -26,9 +29,9 @@ text
 GET /api/v1/search?q=<query>&source=<source>&limit=<limit>
 
 Param	Type	Default	Description
-q	string	required	Search term (case-insensitive partial match)
-source	string	all	Comma-separated: apt,aur,pypi,homebrew,...
-limit	int	20	Max results (1-100)
+q	string	required	Search term (case‑insensitive partial match)
+source	string	all	Comma‑separated: apt,aur,pypi,homebrew,...
+limit	int	20	Max results (1‑100)
 
 Response 200
 json
@@ -46,7 +49,8 @@ json
       "install_command": "sudo apt install -y firefox",
       "icon_url": "",
       "dependencies": "[]",
-      "last_updated": "2026-05-01T00:00:00Z"
+      "last_updated": "2026-05-01T00:00:00Z",
+      "priority": 0
     }
   ]
 }
@@ -81,8 +85,8 @@ json
 
 {
   "plugins": {
-    "apt": {"type":"apt","index_method":"apt-cache","container":"debian-stable"},
-    "aur": {"type":"pacman","index_method":"aur-rpc","container":"arch-toolbox"}
+    "apt": {"type":"apt","index_method":"apt-cache","container":"debian-stable","priority":0},
+    "aur": {"type":"pacman","index_method":"aur-rpc","container":"arch-toolbox","priority":3}
   }
 }
 
@@ -103,7 +107,8 @@ Content-Type: application/json
   "source": "auto",
   "version": "latest",
   "hardware_profile": "auto",
-  "mode": "desktop"
+  "mode": "desktop",
+  "username": "penta"
 }
 
 Response 200
@@ -123,7 +128,7 @@ json
   "task_id":"...",
   "status":"running",
   "progress":45,
-  "log":["Searching Penta Hub...","Selected: firefox from apt"],
+  "log":["Searching Hub...","Selected: firefox from apt"],
   "result":null
 }
 
@@ -136,14 +141,15 @@ GET /api/v1/installed
 Response 200
 json
 
-{"installed":[{"name":"Firefox","file":"/home/user/.local/.../firefox.desktop"}]}
+{"installed":[{"name":"Firefox"},{"name":"Metasploit"}]}
 
 2.5 Uninstall App
 text
 
 POST /api/v1/uninstall/{app_name}
 
-Response 200 – {"status":"removed"}
+Optionally include ?username=<user> to target another user.
+Response 200 – {"status":"removed","log":["Note: user data directories still exist..."]}
 Response 404 – app not found
 2.6 Switch Mode
 text
@@ -152,6 +158,8 @@ POST /api/v1/mode/switch?mode=pentest
 
 Response 200 – {"status":"switched","mode":"pentest"}
 3. pentad (Module Daemon)
+
+Currently still TCP, Unix socket planned for v1.7.
 3.1 Status
 text
 
@@ -174,7 +182,7 @@ text
 
 GET /api/v1/scan
 
-Triggers I²C bus scan, returns same structure as status.
+Triggers I²C scan, returns same structure as status.
 3.3 Module Power Control
 text
 
@@ -197,3 +205,40 @@ json
 {"cpu_percent":25.3,"memory_total_mb":8192,"memory_used_mb":2048}
 
 Response 501 – psutil not installed
+4. psyche (Psycho‑emotional Monitor)
+
+Does not expose an API. Communicates via MQTT topics:
+
+    penta/biometrics — input data (JSON with heart_rate, gsr, temperature)
+
+    penta/psyche — output state (JSON with stress, fatigue, timestamp)
+
+    penta/command/filter — block dangerous commands if stress/fatigue exceeds threshold
+
+5. Mode Watcher (Automatic Mode Switcher)
+
+No API. Subscribes to MQTT topics penta/module/attach and penta/module/detach.
+Calls Resolver’s /api/v1/mode/switch when rules match.
+6. Authentication & Security
+
+    Socket ownership: penta:penta
+
+    File permissions: 660 (read‑write for owner and group only)
+
+    The group penta includes the Resolver, CLI, GUI, mode‑watcher, and administrator.
+
+    Third‑party processes cannot reach the Hub or Resolver unless added to the penta group.
+
+    pentad still listens on TCP localhost:8600 – limited to localhost; will be migrated to socket in next release.
+
+7. Client Examples
+CLI with Unix socket
+python
+
+import requests_unixsocket
+
+session = requests_unixsocket.Session()
+resp = session.get("unix:///run/penta/hub.sock/api/v1/search?q=firefox")
+print(resp.json())
+
+GUI (Qt) – use the same session object as CLI.
