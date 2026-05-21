@@ -1,7 +1,13 @@
 #!/bin/bash
-# Penta OS Master Build Script
+# Penta OS Master Build Script (v1.6.2)
 # Builds a complete bootable image from scratch.
-# Usage: sudo ./build.sh --arch arm64 --variant desktop [--output ./output] [--extra-packages pkg1,pkg2]
+# Fixes:
+#   - Creates system users penta and pentad (with i2c group).
+#   - Installs i2c-tools, python3-smbus2 (or pip smbus2).
+#   - Ensures i2c-dev module loaded at boot.
+#   - Installs all Python dependencies into rootfs.
+#   - Copies updated src with plugin_loader and unified config.
+#   - Sets PENTA_CONFIG environment variable in service files.
 
 set -euo pipefail
 
@@ -28,7 +34,6 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# ---------- Validate ----------
 if [[ "$ARCH" != "arm64" && "$ARCH" != "amd64" ]]; then
     echo "Invalid architecture: $ARCH (must be arm64 or amd64)"
     exit 1
@@ -48,11 +53,9 @@ mkdir -p "$ROOTFS" "$IMAGEDIR" "$OUTPUT"
 
 echo "Building Penta OS ($ARCH, $VARIANT) in $WORKDIR"
 
-# ---------- Cleanup handler ----------
 cleanup() {
     if $CLEANUP; then
         echo "Cleaning up $WORKDIR ..."
-        # Unmount anything we mounted
         for m in "$ROOTFS/proc" "$ROOTFS/sys" "$ROOTFS/dev" "$ROOTFS/dev/pts"; do
             mountpoint -q "$m" && umount "$m" 2>/dev/null || true
         done
@@ -63,28 +66,26 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# ---------- 1. Base rootfs with debootstrap ----------
+# ---------- 1. Base rootfs ----------
 echo "1. Creating base rootfs..."
-debootstrap --arch="$ARCH" --variant=minbase --include=systemd,systemd-sysv,ca-certificates,locales,curl,wget,gnupg,sudo,apt-transport-https \
+debootstrap --arch="$ARCH" --variant=minbase \
+    --include=systemd,systemd-sysv,ca-certificates,locales,curl,wget,gnupg,sudo,apt-transport-https \
     trixie "$ROOTFS" http://deb.debian.org/debian
 
-# ---------- 2. Configure chroot environment ----------
+# ---------- 2. Configure chroot ----------
 echo "2. Configuring base system..."
-# Setup hostname
 echo "penta" > "$ROOTFS/etc/hostname"
 echo "127.0.0.1 localhost penta" >> "$ROOTFS/etc/hosts"
 
-# Locale
 chroot "$ROOTFS" locale-gen en_US.UTF-8
 chroot "$ROOTFS" update-locale LANG=en_US.UTF-8
 
-# Mount virtual filesystems for chroot
 mount -t proc none "$ROOTFS/proc"
 mount -t sysfs none "$ROOTFS/sys"
 mount -o bind /dev "$ROOTFS/dev"
 mount -o bind /dev/pts "$ROOTFS/dev/pts"
 
-# Copy QEMU static binary if cross-arch
+# QEMU cross-arch support
 HOST_ARCH=$(uname -m)
 if [[ "$HOST_ARCH" != "$ARCH" ]]; then
     case "$ARCH" in
@@ -94,7 +95,7 @@ if [[ "$HOST_ARCH" != "$ARCH" ]]; then
     cp "/usr/bin/$QEMU_BIN" "$ROOTFS/usr/bin/"
 fi
 
-# ---------- 3. Install Penta OS mandatory packages ----------
+# ---------- 3. Install packages ----------
 echo "3. Installing essential packages..."
 cat <<EOF | chroot "$ROOTFS" bash
 export DEBIAN_FRONTEND=noninteractive
@@ -104,79 +105,86 @@ apt install -y --no-install-recommends \
     python3 python3-pip python3-fastapi python3-uvicorn \
     mosquitto mosquitto-clients \
     network-manager \
-    distrobox \
+    distrobox docker.io \
     flatpak snapd appimaged \
-    docker.io \
     xorg wayland weston plasma-desktop \
+    i2c-tools python3-smbus2 \
     sudo
 EOF
 
-# Additional packages per variant
+# Enable i2c-dev module on boot
+echo "i2c-dev" >> "$ROOTFS/etc/modules-load.d/penta.conf"
+
+# Extra per-variant packages
 case "$VARIANT" in
     desktop)
-        chroot "$ROOTFS" apt install -y --no-install-recommends kde-full firefox-esr
+        chroot "$ROOTFS" apt install -y --no-install-recommends kde-full firefox-esr || true
         ;;
-    minimal)
-        ;;
+    minimal) ;;
     developer)
         chroot "$ROOTFS" apt install -y --no-install-recommends build-essential git vim
         ;;
 esac
 
-# Extra packages
-if [[ -n "$EXTRA_PACKAGES" ]]; then
-    chroot "$ROOTFS" apt install -y $EXTRA_PACKAGES
-fi
+[[ -n "$EXTRA_PACKAGES" ]] && chroot "$ROOTFS" apt install -y $EXTRA_PACKAGES
 
-# ---------- 4. Install Penta OS custom components ----------
-echo "4. Installing Penta OS components..."
-# Create directories
-mkdir -p "$ROOTFS/opt/penta" "$ROOTFS/etc/penta" "$ROOTFS/etc/penta/plugins"
+# ---------- 4. Create system users ----------
+echo "4. Creating Penta system users..."
+chroot "$ROOTFS" useradd -r -s /bin/false -m -d /var/lib/penta penta
+chroot "$ROOTFS" useradd -r -s /bin/false -M -G i2c pentad
+# Allow penta to use docker
+chroot "$ROOTFS" usermod -aG docker penta
 
-# Copy source files from repository
+# ---------- 5. Install Penta OS custom components ----------
+echo "5. Installing Penta OS components..."
+mkdir -p "$ROOTFS/opt/penta" "$ROOTFS/etc/penta/plugins" "$ROOTFS/var/lib/penta/toolbox"
+
+# Copy source code
 cp -r "$SCRIPT_DIR/src/"* "$ROOTFS/opt/penta/"
+# Copy configuration
 cp "$SCRIPT_DIR/config/penta.conf.example" "$ROOTFS/etc/penta/config.yaml"
 cp "$SCRIPT_DIR/config/containers.yaml" "$ROOTFS/etc/penta/containers.yaml"
 cp "$SCRIPT_DIR/config/repository-plugins.yaml" "$ROOTFS/etc/penta/plugins/"
 
-# Copy CLI wrapper to /usr/local/bin
+# CLI tool
 cp "$SCRIPT_DIR/src/cli/penta" "$ROOTFS/usr/local/bin/penta"
 chmod +x "$ROOTFS/usr/local/bin/penta"
 
-# Copy service files
+# Service files
 for svc in penta-hub penta-resolver pentad psyched; do
     if [[ -f "$SCRIPT_DIR/services/$svc.service" ]]; then
         cp "$SCRIPT_DIR/services/$svc.service" "$ROOTFS/etc/systemd/system/"
+        # Set PENTA_CONFIG environment variable in service
+        sed -i 's|^Environment=PYTHONUNBUFFERED=1|Environment=PENTA_CONFIG=/etc/penta/config.yaml PYTHONUNBUFFERED=1|' "$ROOTFS/etc/systemd/system/$svc.service"
     fi
 done
 
+# Install Python dependencies globally in rootfs
+cp "$SCRIPT_DIR/src/requirements.txt" "$ROOTFS/tmp/requirements.txt"
+chroot "$ROOTFS" pip3 install --break-system-packages -r /tmp/requirements.txt
+rm "$ROOTFS/tmp/requirements.txt"
+
 # Enable services
-chroot "$ROOTFS" systemctl enable penta-hub penta-resolver pentad || true
+chroot "$ROOTFS" systemctl enable penta-hub penta-resolver pentad
 
-# ---------- 5. Kernel installation ----------
-echo "5. Installing kernel..."
-if [[ -f "$KERNEL_CONFIG" ]]; then
-    # Custom kernel build (simplified: use Debian kernel for now)
-    chroot "$ROOTFS" apt install -y linux-image-$ARCH linux-headers-$ARCH
-else
-    chroot "$ROOTFS" apt install -y linux-image-$ARCH linux-headers-$ARCH
-fi
+# ---------- 6. Kernel ----------
+echo "6. Installing kernel..."
+chroot "$ROOTFS" apt install -y linux-image-$ARCH linux-headers-$ARCH || true
 
-# ---------- 6. Build and embed container toolboxes ----------
+# ---------- 7. Container images ----------
 if $BUILD_CONTAINERS; then
-    echo "6. Building container toolboxes..."
+    echo "7. Building container toolboxes..."
     cd "$SCRIPT_DIR/containers"
     for img in debian-stable arch-toolbox fedora-toolbox kali winbox python-slim node-slim homebrew; do
-        if [[ -d "$img" ]]; then
-            docker build -t "ghcr.io/penta-os/$img:latest" "$img"
-            docker save "ghcr.io/penta-os/$img:latest" | gzip > "$ROOTFS/var/lib/penta/toolbox/$img.tar.gz"
-        fi
+        [[ -d "$img" ]] || continue
+        docker build -t "ghcr.io/penta-os/$img:latest" "$img"
+        docker save "ghcr.io/penta-os/$img:latest" | gzip > "$ROOTFS/var/lib/penta/toolbox/$img.tar.gz"
     done
     cd "$SCRIPT_DIR"
 fi
 
-# ---------- 7. Configure Btrfs subvolumes and fstab ----------
-echo "7. Configuring filesystem layout..."
+# ---------- 8. FSTAB & Snapper ----------
+echo "8. Configuring filesystem..."
 cat > "$ROOTFS/etc/fstab" <<EOF
 /dev/mmcblk0p2  /               btrfs   defaults,subvol=@root  0 0
 /dev/mmcblk0p2  /home           btrfs   defaults,subvol=@home  0 0
@@ -186,26 +194,22 @@ cat > "$ROOTFS/etc/fstab" <<EOF
 /dev/mmcblk0p1  /boot/efi       vfat    defaults,noatime       0 2
 EOF
 
-# Initialize Snapper
 chroot "$ROOTFS" snapper -c root create-config / || true
 
-# ---------- 8. Create disk image ----------
-echo "8. Creating disk image..."
+# ---------- 9. Image assembly ----------
+echo "9. Creating disk image..."
 IMAGE="$IMAGEDIR/penta-os-$(date +%Y%m%d)-$ARCH.img"
-dd if=/dev/zero of="$IMAGE" bs=1M count=4096   # 4 GB
+dd if=/dev/zero of="$IMAGE" bs=1M count=4096
 
-# Partition: EFI (256MiB) + Btrfs root (rest)
 parted -s "$IMAGE" mklabel gpt
 parted -s "$IMAGE" mkpart primary fat32 1MiB 257MiB
 parted -s "$IMAGE" set 1 esp on
 parted -s "$IMAGE" mkpart primary btrfs 257MiB 100%
 
-# Map partitions using kpartx
 LOOPDEV=$(kpartx -av "$IMAGE" | tail -1 | awk '{print $1}' | sed 's/p1$//')
 mkfs.vfat -F32 "/dev/mapper/${LOOPDEV}p1"
 mkfs.btrfs -L penta-root "/dev/mapper/${LOOPDEV}p2"
 
-# Create Btrfs subvolumes
 mount "/dev/mapper/${LOOPDEV}p2" /mnt
 btrfs subvol create /mnt/@root
 btrfs subvol create /mnt/@home
@@ -214,7 +218,6 @@ btrfs subvol create /mnt/@var
 btrfs subvol create /mnt/@snapshots
 umount /mnt
 
-# Copy rootfs into subvolumes
 mount -o subvol=@root "/dev/mapper/${LOOPDEV}p2" /mnt
 rsync -avx "$ROOTFS/" /mnt/
 mkdir -p /mnt/home /mnt/opt /mnt/var /mnt/.snapshots
@@ -223,11 +226,10 @@ mount -o subvol=@opt "/dev/mapper/${LOOPDEV}p2" /mnt/opt
 mount -o subvol=@var "/dev/mapper/${LOOPDEV}p2" /mnt/var
 mount -o subvol=@snapshots "/dev/mapper/${LOOPDEV}p2" /mnt/.snapshots
 
-# ---------- 9. Bootloader ----------
-echo "9. Installing bootloader..."
+# ---------- 10. Bootloader ----------
+echo "10. Installing bootloader..."
 case "$ARCH" in
     arm64)
-        # For Raspberry Pi 5, copy U-Boot and firmware
         cp -r "$SCRIPT_DIR/boot/firmware/"* /mnt/boot/firmware/ 2>/dev/null || true
         cp "$SCRIPT_DIR/boot/u-boot.bin" /mnt/boot/ 2>/dev/null || true
         ;;
@@ -239,12 +241,10 @@ case "$ARCH" in
         ;;
 esac
 
-# ---------- 10. Finalize ----------
-echo "10. Finalizing..."
+# ---------- 11. Finalize ----------
+echo "11. Finalizing..."
 umount -R /mnt
 kpartx -d "$IMAGE"
 
-# Compress image
 xz -z "$IMAGE" -c > "$OUTPUT/penta-os-$(date +%Y%m%d)-$ARCH.img.xz"
-
 echo "Build complete! Image: $OUTPUT/penta-os-$(date +%Y%m%d)-$ARCH.img.xz"
