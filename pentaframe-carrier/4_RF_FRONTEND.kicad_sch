@@ -1,0 +1,313 @@
+(kicad_sch (version 20240108) (generator "kicad_sch")
+  (paper "A3")
+  (title_block
+    (title "PentaFrame - RF Frontend (8 Radios, Antenna Switching, LNA)")
+    (date "2026-05-17")
+    (rev "1.0")
+    (company "PentaFrame Technologies")
+  )
+
+  (lib_symbols
+    (symbol "power:GND" (pin (name "1") (number "1")) (property "Reference" "#PWR") (property "Value" "GND"))
+    (symbol "power:+3.3V" (pin (name "1") (number "1")) (property "Reference" "#PWR") (property "Value" "+3.3V"))
+    (symbol "power:+3.3VA" (pin (name "1") (number "1")) (property "Reference" "#PWR") (property "Value" "+3.3VA"))
+    (symbol "power:+1.8VA" (pin (name "1") (number "1")) (property "Reference" "#PWR") (property "Value" "+1.8VA"))
+
+    (symbol "RF:CC1101RTKR"
+      (pin (name "RF_P") (number "1")) (pin (name "RF_N") (number "2"))
+      (pin (name "AVDD") (number "3")) (pin (name "DVDD") (number "4"))
+      (pin (name "GDO0") (number "5")) (pin (name "GDO2") (number "6"))
+      (pin (name "CSn") (number "7")) (pin (name "SCLK") (number "8"))
+      (pin (name "SI") (number "9")) (pin (name "SO") (number "10"))
+      (pin (name "XOSC_Q1") (number "11")) (pin (name "XOSC_Q2") (number "12"))
+      (pin (name "GND") (number "13"))
+      (property "Reference" "U17") (property "Value" "CC1101")
+      (property "Footprint" "Package_DFN_QFN:VQFN-20-1EP_4x4mm_P0.5mm_EP2.6x2.6mm")
+    )
+    (symbol "RF:RTL2832U"
+      (pin (name "RF_IN") (number "1")) (pin (name "XTAL_I") (number "2")) (pin (name "XTAL_O") (number "3"))
+      (pin (name "USB_DP") (number "4")) (pin (name "USB_DN") (number "5"))
+      (pin (name "VDD") (number "6")) (pin (name "GND") (number "7"))
+      (property "Reference" "U18") (property "Value" "RTL2832U")
+      (property "Footprint" "Package_DFN_QFN:QFN-48-1EP_6x6mm_P0.4mm_EP4.2x4.2mm")
+    )
+    (symbol "RF:ESP32-S3-WROOM"
+      (pin (name "3V3") (number "1")) (pin (name "GND") (number "2"))
+      (pin (name "IO0") (number "3")) (pin (name "IO1") (number "4"))
+      (pin (name "IO2") (number "5")) (pin (name "IO3") (number "6"))
+      (pin (name "IO4") (number "7")) (pin (name "IO5") (number "8"))
+      (pin (name "IO6") (number "9")) (pin (name "IO7") (number "10"))
+      (pin (name "IO8") (number "11")) (pin (name "IO9") (number "12"))
+      (pin (name "IO10") (number "13")) (pin (name "IO11") (number "14"))
+      (pin (name "IO12") (number "15")) (pin (name "IO13") (number "16"))
+      (pin (name "IO14") (number "17")) (pin (name "IO15") (number "18"))
+      (pin (name "IO16") (number "19")) (pin (name "IO17") (number "20"))
+      (pin (name "IO18") (number "21")) (pin (name "IO19") (number "22"))
+      (pin (name "IO20") (number "23")) (pin (name "IO21") (number "24"))
+      (pin (name "IO26") (number "25")) (pin (name "IO27") (number "26"))
+      (pin (name "IO33") (number "27")) (pin (name "IO34") (number "28"))
+      (pin (name "IO35") (number "29")) (pin (name "IO36") (number "30"))
+      (pin (name "IO37") (number "31")) (pin (name "IO38") (number "32"))
+      (pin (name "IO39") (number "33")) (pin (name "IO40") (number "34"))
+      (pin (name "IO41") (number "35")) (pin (name "IO42") (number "36"))
+      (pin (name "TXD0") (number "37")) (pin (name "RXD0") (number "38"))
+      (pin (name "EN") (number "39")) (pin (name "GPIO0") (number "40"))
+      (property "Reference" "U19") (property "Value" "ESP32-S3-WROOM-1-N16R8")
+      (property "Footprint" "RF_Module:ESP32-S3-WROOM-1")
+    )
+    (symbol "MCU_Microchip_ATmega:ATmega32U4-AU"
+      (pin (name "PB0") (number "1")) (pin (name "PB1") (number "2"))
+      (pin (name "PB2") (number "3")) (pin (name "PB3") (number "4"))
+      (pin (name "PB4") (number "5")) (pin (name "PB5") (number "6"))
+      (pin (name "PB6") (number "7")) (pin (name "PB7") (number "8"))
+      (pin (name "PD0") (number "9")) (pin (name "PD1") (number "10"))
+      (pin (name "PD2") (number "11")) (pin (name "PD3") (number "12"))
+      (pin (name "PD4") (number "13")) (pin (name "PD5") (number "14"))
+      (pin (name "PD6") (number "15")) (pin (name "PD7") (number "16"))
+      (pin (name "PE0") (number "17")) (pin (name "PE1") (number "18"))
+      (pin (name "PE2") (number "19")) (pin (name "PE6") (number "20"))
+      (pin (name "AVCC") (number "21")) (pin (name "GND") (number "22"))
+      (pin (name "VCC") (number "23")) (pin (name "AREF") (number "24"))
+      (pin (name "XTAL1") (number "25")) (pin (name "XTAL2") (number "26"))
+      (pin (name "RESET") (number "27")) (pin (name "UCAP") (number "28"))
+      (pin (name "D-") (number "29")) (pin (name "D+") (number "30"))
+      (pin (name "UGND") (number "31")) (pin (name "UVCC") (number "32"))
+      (pin (name "VBUS") (number "33")) (pin (name "PE4") (number "34"))
+      (pin (name "PE5") (number "35")) (pin (name "PF0") (number "36"))
+      (pin (name "PF1") (number "37")) (pin (name "PF4") (number "38"))
+      (pin (name "PF5") (number "39")) (pin (name "PF6") (number "40"))
+      (pin (name "PF7") (number "41")) (pin (name "PG0") (number "42"))
+      (pin (name "PG1") (number "43")) (pin (name "PG2") (number "44"))
+      (property "Reference" "U20") (property "Value" "ATmega32U4")
+      (property "Footprint" "Package_QFP:TQFP-44_10x10mm_P0.8mm")
+    )
+    (symbol "RF:PN532"
+      (pin (name "SDA") (number "1")) (pin (name "SCL") (number "2"))
+      (pin (name "VDD") (number "3")) (pin (name "GND") (number "4"))
+      (pin (name "IRQ") (number "5")) (pin (name "RST") (number "6"))
+      (property "Reference" "U21") (property "Value" "PN532")
+      (property "Footprint" "Package_DFN_QFN:QFN-40-1EP_6x6mm_P0.5mm")
+    )
+    (symbol "RF:RDM6300"
+      (pin (name "ANT1") (number "1")) (pin (name "ANT2") (number "2"))
+      (pin (name "VCC") (number "3")) (pin (name "GND") (number "4"))
+      (pin (name "TX") (number "5")) (pin (name "RX") (number "6"))
+      (property "Reference" "U22") (property "Value" "RDM6300")
+      (property "Footprint" "Package_DIP:DIP-8_W7.62mm")
+    )
+    (symbol "GPS:NEO-M9N"
+      (pin (name "VCC") (number "1")) (pin (name "GND") (number "2"))
+      (pin (name "TX") (number "3")) (pin (name "RX") (number "4"))
+      (pin (name "SDA") (number "5")) (pin (name "SCL") (number "6"))
+      (pin (name "RF_IN") (number "7")) (pin (name "V_BCKP") (number "8"))
+      (property "Reference" "U23") (property "Value" "NEO-M9N")
+      (property "Footprint" "RF_Module:NEO-M9N")
+    )
+    (symbol "Sensor_Infrared:TSOP4838"
+      (pin (name "VS") (number "1")) (pin (name "OUT") (number "2")) (pin (name "GND") (number "3"))
+      (property "Reference" "U24") (property "Value" "TSOP4838")
+      (property "Footprint" "Package_TO_SOT_THT:TO-92_Inline")
+    )
+    (symbol "LED:TSAL6200"
+      (pin (name "A") (number "1")) (pin (name "K") (number "2"))
+      (property "Reference" "D2") (property "Value" "TSAL6200")
+      (property "Footprint" "LED_THT:LED_D5.0mm")
+    )
+    (symbol "Switch:SKY13416-485LF"
+      (pin (name "RFC") (number "1")) (pin (name "RF1") (number "2"))
+      (pin (name "RF2") (number "3")) (pin (name "RF3") (number "4"))
+      (pin (name "RF4") (number "5")) (pin (name "VDD") (number "6"))
+      (pin (name "CTRL_A") (number "7")) (pin (name "CTRL_B") (number "8"))
+      (property "Reference" "SW1") (property "Value" "SKY13416")
+      (property "Footprint" "Package_DFN_QFN:QFN-14-1EP_2x2mm_P0.4mm")
+    )
+    (symbol "Switch:SKY13416-485LF"
+      (pin (name "RFC") (number "1")) (pin (name "RF1") (number "2"))
+      (pin (name "RF2") (number "3")) (pin (name "RF3") (number "4"))
+      (pin (name "RF4") (number "5")) (pin (name "VDD") (number "6"))
+      (pin (name "CTRL_A") (number "7")) (pin (name "CTRL_B") (number "8"))
+      (property "Reference" "SW2") (property "Value" "SKY13416")
+      (property "Footprint" "Package_DFN_QFN:QFN-14-1EP_2x2mm_P0.4mm")
+    )
+    (symbol "Amplifier:BGU8053"
+      (pin (name "RF_IN") (number "1")) (pin (name "RF_OUT") (number "2"))
+      (pin (name "VCC") (number "3")) (pin (name "GND") (number "4"))
+      (property "Reference" "U25") (property "Value" "BGU8053")
+      (property "Footprint" "Package_TO_SOT_SMD:SOT-89-3")
+    )
+    (symbol "Connector:SMA"
+      (pin (name "Center") (number "1")) (pin (name "Shield") (number "2"))
+      (property "Reference" "J8") (property "Value" "SMA_SubGHz")
+      (property "Footprint" "Connector_Coaxial:SMA_Edge_RP_SMA")
+    )
+    (symbol "Connector:SMA"
+      (pin (name "Center") (number "1")) (pin (name "Shield") (number "2"))
+      (property "Reference" "J9") (property "Value" "SMA_2.4GHz")
+      (property "Footprint" "Connector_Coaxial:SMA_Edge_RP_SMA")
+    )
+    (symbol "Device:C" (pin (name "1") (number "1")) (pin (name "2") (number "2")) (property "Reference" "C") (property "Value" "100nF") (property "Footprint" "Capacitor_SMD:C_0402"))
+    (symbol "Device:C" (pin (name "1") (number "1")) (pin (name "2") (number "2")) (property "Reference" "C") (property "Value" "10uF") (property "Footprint" "Capacitor_SMD:C_0603"))
+    (symbol "Device:C" (pin (name "1") (number "1")) (pin (name "2") (number "2")) (property "Reference" "C") (property "Value" "100pF") (property "Footprint" "Capacitor_SMD:C_0402"))
+    (symbol "Device:R" (pin (name "1") (number "1")) (pin (name "2") (number "2")) (property "Reference" "R") (property "Value" "10k") (property "Footprint" "Resistor_SMD:R_0402"))
+    (symbol "Device:L" (pin (name "1") (number "1")) (pin (name "2") (number "2")) (property "Reference" "L") (property "Value" "22nH") (property "Footprint" "Inductor_SMD:L_0402"))
+    (symbol "Device:Ferrite_Bead" (pin (name "1") (number "1")) (pin (name "2") (number "2")) (property "Reference" "FB") (property "Value" "BLM18RK601SN1") (property "Footprint" "Inductor_SMD:L_0603"))
+  )
+
+  ; ==================== Компоненты ====================
+  (symbol (lib_id "RF:CC1101RTKR") (at 100 300) (unit 1))
+  (symbol (lib_id "RF:RTL2832U") (at 350 300) (unit 1))
+  (symbol (lib_id "RF:ESP32-S3-WROOM") (at 100 100) (unit 1))
+  (symbol (lib_id "MCU_Microchip_ATmega:ATmega32U4-AU") (at 350 100) (unit 1))
+  (symbol (lib_id "RF:PN532") (at 600 300) (unit 1))
+  (symbol (lib_id "RF:RDM6300") (at 600 100) (unit 1))
+  (symbol (lib_id "GPS:NEO-M9N") (at 100 500) (unit 1))
+  (symbol (lib_id "Sensor_Infrared:TSOP4838") (at 350 500) (unit 1))
+  (symbol (lib_id "LED:TSAL6200") (at 600 500) (unit 1))
+
+  ; Антенные коммутаторы
+  (symbol (lib_id "Switch:SKY13416-485LF") (at 250 150) (unit 1)) ; SW1 Sub-1GHz
+  (symbol (lib_id "Switch:SKY13416-485LF") (at 500 150) (unit 1)) ; SW2 High-Band
+
+  ; LNA и SMA
+  (symbol (lib_id "Amplifier:BGU8053") (at 350 200) (unit 1))
+  (symbol (lib_id "Connector:SMA") (at 50 200) (unit 1))
+  (symbol (lib_id "Connector:SMA") (at 700 200) (unit 1))
+
+  ; Развязка и фильтры
+  (symbol (lib_id "Device:C") (at 80 200) (unit 1) (property "Reference" "C300") (property "Value" "100pF"))
+  (symbol (lib_id "Device:C") (at 80 220) (unit 1) (property "Reference" "C301") (property "Value" "100pF"))
+  (symbol (lib_id "Device:C") (at 80 280) (unit 1) (property "Reference" "C302") (property "Value" "10uF"))
+  (symbol (lib_id "Device:C") (at 80 320) (unit 1) (property "Reference" "C303") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 80 360) (unit 1) (property "Reference" "C304") (property "Value" "100nF"))
+  (symbol (lib_id "Device:L") (at 120 280) (unit 1) (property "Reference" "L300") (property "Value" "22nH"))
+  (symbol (lib_id "Device:L") (at 140 280) (unit 1) (property "Reference" "L301") (property "Value" "22nH"))
+  (symbol (lib_id "Device:Ferrite_Bead") (at 80 240) (unit 1) (property "Reference" "FB300") (property "Value" "BLM18RK"))
+
+  ; ==================== Соединения ====================
+  ; --- Питание ---
+  (power_symbol "+3.3VA" (at 50 50))
+  (power_symbol "+1.8VA" (at 50 80))
+  (power_symbol "GND" (at 50 120))
+  (wire (pts (xy 50 50) (xy 80 50)) (global_label "VCC_LNA" (at 50 50)))
+  (wire (pts (xy 50 80) (xy 80 80)) (global_label "VCC_1V8_RF" (at 50 80)))
+
+  ; --- Антенный тракт Sub-1GHz ---
+  (wire (pts (xy 50 200) (xy 80 200))) ; SMA1 Center
+  (wire (pts (xy 80 200) (xy 80 220))) ; DC block C300
+  (wire (pts (xy 80 220) (xy 120 220))) ; C300 -> SW1 RFC
+  (wire (pts (xy 120 220) (xy 250 220))) ; SW1 RFC
+  (wire (pts (xy 250 200) (xy 100 220))) ; SW1 RF1 -> CC1101 (через балун, упрощенно)
+  (global_label "CC1101_RF" (at 100 220))
+  (wire (pts (xy 250 180) (xy 350 180))) ; SW1 RF2 -> RDM6300
+  (global_label "RDM6300_ANT" (at 350 180))
+  (wire (pts (xy 250 240) (xy 100 280))) ; SW1 RF3 -> GPS
+  (global_label "GPS_RF_IN" (at 100 280))
+  ; SW1 RF4 зарезервирован
+
+  ; --- Антенный тракт High-Band ---
+  (wire (pts (xy 700 200) (xy 650 200))) ; SMA2 Center
+  (wire (pts (xy 650 200) (xy 650 220))) ; DC block
+  (symbol (lib_id "Device:C") (at 650 220) (unit 1) (property "Reference" "C305") (property "Value" "100pF"))
+  (wire (pts (xy 650 220) (xy 600 220))) ; C305 -> SW2 RFC
+  (wire (pts (xy 600 220) (xy 500 220))) ; SW2 RFC
+  (wire (pts (xy 500 200) (xy 450 200))) ; SW2 RF1 -> ESP32 (через антенный переключатель)
+  (global_label "ESP32_ANT" (at 450 200))
+  (wire (pts (xy 500 180) (xy 450 180))) ; SW2 RF2 -> LNA
+  (wire (pts (xy 450 180) (xy 350 180))) ; LNA input
+  (wire (pts (xy 350 180) (xy 350 160))) ; LNA output -> RTL2832U RF_IN
+  (wire (pts (xy 350 160) (xy 350 140))) ; RTL RF_IN
+  (global_label "RTL_RF_IN" (at 350 140))
+  ; SW2 RF3/RF4 зарезервированы
+
+  ; --- LNA питание ---
+  (wire (pts (xy 350 200) (xy 350 220))) ; VCC
+  (global_label "VCC_LNA" (at 350 220))
+  (wire (pts (xy 350 200) (xy 350 240))) ; GND
+  (power_symbol "GND" (at 350 240))
+
+  ; --- Управление коммутаторами ---
+  (wire (pts (xy 250 260) (xy 100 260))) ; SW1 CTRL_A/B
+  (global_label "RF_SW1_CTRL_A" (at 100 260))
+  (wire (pts (xy 250 280) (xy 100 280)))
+  (global_label "RF_SW1_CTRL_B" (at 100 280))
+  (wire (pts (xy 500 260) (xy 600 260)))
+  (global_label "RF_SW2_CTRL_A" (at 600 260))
+  (wire (pts (xy 500 280) (xy 600 280)))
+  (global_label "RF_SW2_CTRL_B" (at 600 280))
+
+  ; --- CC1101 SPI и управление ---
+  (wire (pts (xy 100 340) (xy 150 340)))
+  (global_label "SPI1_SCLK" (at 100 340))
+  (wire (pts (xy 100 360) (xy 150 360)))
+  (global_label "SPI1_MOSI" (at 100 360))
+  (wire (pts (xy 100 380) (xy 150 380)))
+  (global_label "SPI1_MISO" (at 100 380))
+  (wire (pts (xy 100 400) (xy 150 400)))
+  (global_label "SPI1_CS0" (at 100 400))
+  (wire (pts (xy 100 420) (xy 150 420)))
+  (global_label "CC1101_GDO0" (at 100 420))
+  (wire (pts (xy 100 440) (xy 150 440)))
+  (global_label "CC1101_GDO2" (at 100 440))
+
+  ; --- ESP32 UART и GPIO ---
+  (wire (pts (xy 100 80) (xy 150 80)))
+  (global_label "ESP32_TXD0" (at 100 80))
+  (wire (pts (xy 100 90) (xy 150 90)))
+  (global_label "ESP32_RXD0" (at 100 90))
+  (wire (pts (xy 100 60) (xy 150 60)))
+  (global_label "ESP32_EN" (at 100 60))
+  (wire (pts (xy 100 50) (xy 150 50)))
+  (global_label "ESP32_IO0" (at 100 50))
+
+  ; --- ATmega32U4 UART и USB ---
+  (wire (pts (xy 350 80) (xy 400 80)))
+  (global_label "ATmega_TXD1" (at 350 80))
+  (wire (pts (xy 350 90) (xy 400 90)))
+  (global_label "ATmega_RXD1" (at 350 90))
+  (wire (pts (xy 350 60) (xy 400 60)))
+  (global_label "ATmega_D+" (at 350 60))
+  (wire (pts (xy 350 70) (xy 400 70)))
+  (global_label "ATmega_D-" (at 350 70))
+
+  ; --- PN532 I2C ---
+  (wire (pts (xy 600 320) (xy 650 320)))
+  (global_label "PN532_SDA" (at 600 320))
+  (wire (pts (xy 600 340) (xy 650 340)))
+  (global_label "PN532_SCL" (at 600 340))
+  (wire (pts (xy 600 360) (xy 650 360)))
+  (global_label "PN532_IRQ" (at 600 360))
+
+  ; --- RDM6300 UART ---
+  (wire (pts (xy 600 120) (xy 650 120)))
+  (global_label "RDM6300_TX" (at 600 120))
+  (wire (pts (xy 600 140) (xy 650 140)))
+  (global_label "RDM6300_RX" (at 600 140))
+
+  ; --- GPS UART/I2C ---
+  (wire (pts (xy 100 520) (xy 150 520)))
+  (global_label "GPS_TX" (at 100 520))
+  (wire (pts (xy 100 540) (xy 150 540)))
+  (global_label "GPS_RX" (at 100 540))
+  (wire (pts (xy 100 560) (xy 150 560)))
+  (global_label "GPS_SDA" (at 100 560))
+  (wire (pts (xy 100 580) (xy 150 580)))
+  (global_label "GPS_SCL" (at 100 580))
+  (wire (pts (xy 100 600) (xy 150 600)))
+  (global_label "GPS_PPS" (at 100 600))
+
+  ; --- IR ---
+  (wire (pts (xy 350 520) (xy 400 520)))
+  (global_label "IR_RX_OUT" (at 350 520))
+  (wire (pts (xy 600 520) (xy 650 520)))
+  (global_label "IR_TX_ANODE" (at 600 520))
+
+  ; --- Развязка питания и земли ---
+  (power_symbol "GND" (at 200 600))
+  (wire (pts (xy 80 320) (xy 80 600)))
+  (wire (pts (xy 80 280) (xy 80 600)))
+  (wire (pts (xy 350 600) (xy 350 300)))
+  (wire (pts (xy 350 300) (xy 350 320)))
+  (power_symbol "+3.3V" (at 80 50))
+  (wire (pts (xy 80 50) (xy 80 60)))
+  (global_label "VCC_3V3_ANALOG" (at 80 50))
+)
