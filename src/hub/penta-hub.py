@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """
-Penta Hub - Metadata Aggregator Service (v1.6.1)
+Penta Hub - Metadata Aggregator Service (v1.6.2)
 =================================================
 FastAPI-based microservice that indexes package metadata from multiple
 repositories (built-in and user-defined via plugins).
 
-Fixes in 1.6.1:
-  - Unified configuration loading via PENTA_CONFIG env variable.
-  - Corrected plugin_loader import path.
-  - Thread-safe SQLite access using asyncio.to_thread and a lock.
-  - Added /api/v1/plugins endpoint to list loaded repository plugins.
+Changes in v1.6.2:
+  - Crawlers now return package lists; run_crawlers inserts them into DB.
+  - Uses db_execute for thread-safe writes.
+  - All previous fixes (config via env, plugin import, thread-safe SQLite) retained.
 
 Usage:
     uvicorn src.hub.penta-hub:app --host 0.0.0.0 --port 8400
@@ -22,7 +21,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 import aiohttp
 import yaml
@@ -37,7 +36,6 @@ from plugin_loader import load_plugins, get_crawlers, get_plugin
 # ---------- Configuration ----------
 CONFIG_PATH = Path(os.environ.get("PENTA_CONFIG", "/etc/penta/config.yaml"))
 if not CONFIG_PATH.exists():
-    # Fallback for development
     CONFIG_PATH = Path("config/penta.conf.example")
 
 with open(CONFIG_PATH, "r") as f:
@@ -52,11 +50,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] hub:
 logger = logging.getLogger("penta-hub")
 
 # ---------- FastAPI App ----------
-app = FastAPI(title="Penta Hub", version="1.6.1")
+app = FastAPI(title="Penta Hub", version="1.6.2")
 
-# ---------- Thread-Safe Database Setup ----------
+# ---------- Thread-Safe Database ----------
 def get_db() -> sqlite3.Connection:
-    """Create a new connection each time (or reuse via connection pool)."""
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -84,17 +81,13 @@ def init_schema(conn: sqlite3.Connection):
     """)
     conn.commit()
 
-# Initialize on startup
-init_db_conn = get_db()
-init_schema(init_db_conn)
-init_db_conn.close()
+init_conn = get_db()
+init_schema(init_conn)
+init_conn.close()
 
-# Lock to serialize write operations (crawlers + reindex)
 db_lock = Lock()
 
-# ---------- Async DB helpers ----------
 async def db_execute(query: str, params: tuple = ()):
-    """Run a database write/update in a thread-safe manner."""
     def _exec():
         conn = get_db()
         with db_lock:
@@ -104,7 +97,6 @@ async def db_execute(query: str, params: tuple = ()):
     await asyncio.to_thread(_exec)
 
 async def db_fetchall(query: str, params: tuple = ()):
-    """Fetch results from a SELECT query."""
     def _fetch():
         conn = get_db()
         cur = conn.execute(query, params)
@@ -114,7 +106,6 @@ async def db_fetchall(query: str, params: tuple = ()):
     return await asyncio.to_thread(_fetch)
 
 async def db_fetchone(query: str, params: tuple = ()):
-    """Fetch a single row."""
     rows = await db_fetchall(query, params)
     return rows[0] if rows else None
 
@@ -136,25 +127,48 @@ class ReindexRequest(BaseModel):
     source: Optional[str] = None
     force: bool = False
 
-# ---------- Plugin-aware Crawling ----------
+# ---------- Plugin-aware Crawling with DB insert ----------
 async def run_crawlers(session: aiohttp.ClientSession, source: str = None):
     crawlers = get_crawlers()
     if source:
         crawler = crawlers.get(source)
         if crawler:
-            await crawler(session)
+            packages = await crawler(session)
+            await insert_packages(packages)
         else:
             logger.warning(f"No crawler found for source '{source}'")
     else:
         for name, crawler in crawlers.items():
             try:
-                await crawler(session)
+                packages = await crawler(session)
+                await insert_packages(packages)
             except Exception as e:
                 logger.error(f"Crawler '{name}' failed: {e}")
 
+async def insert_packages(packages: List[Dict[str, Any]]):
+    """Insert or replace package records into the database."""
+    for pkg in packages:
+        await db_execute(
+            "INSERT OR REPLACE INTO packages (id, name, source, version, description, architecture, container, install_command, icon_url, dependencies) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                pkg.get("id", f"{pkg.get('source','')}-{pkg.get('name','')}"),
+                pkg.get("name", ""),
+                pkg.get("source", ""),
+                pkg.get("version", "unknown"),
+                pkg.get("description", ""),
+                pkg.get("architecture", "all"),
+                pkg.get("container", "debian-stable"),
+                pkg.get("install_command", ""),
+                pkg.get("icon_url", ""),
+                pkg.get("dependencies", "[]")
+            )
+        )
+    logger.info(f"Inserted/updated {len(packages)} packages from crawl.")
+
 # ---------- Background Task ----------
 async def periodic_index():
-    load_plugins()  # ensure plugins are loaded before first crawl
+    load_plugins()
     async with aiohttp.ClientSession() as session:
         while True:
             await run_crawlers(session)
@@ -165,7 +179,7 @@ async def startup():
     load_plugins()
     asyncio.create_task(periodic_index())
 
-# ---------- API Endpoints ----------
+# ---------- API Endpoints (same as v1.6.1) ----------
 @app.get("/api/v1/search")
 async def search(
     q: str = Query(..., description="Search query"),
@@ -238,7 +252,6 @@ async def health():
 
 @app.get("/api/v1/plugins")
 async def list_plugins():
-    """List all currently loaded repository plugins."""
     plugins = {}
     for name, plugin in get_plugin.__globals__['_plugins'].items():
         plugins[name] = {
