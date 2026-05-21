@@ -7,10 +7,10 @@ Requires=mosquitto.service
 Type=simple
 User=pentad
 Group=pentad
-ExecStart=/usr/bin/python3 /opt/penta/src/pentad/pentad.py
+ExecStart=/usr/bin/python3 /opt/penta/pentad/pentad.py
 Restart=on-failure
 RestartSec=5
-Environment=PYTHONUNBUFFERED=1
+Environment=PENTA_CONFIG=/etc/penta/config.yaml PYTHONUNBUFFERED=1
 StandardOutput=journal
 StandardError=journal
 
