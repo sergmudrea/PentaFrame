@@ -1,0 +1,276 @@
+(kicad_sch (version 20240108) (generator "kicad_sch")
+  (paper "A3")
+  (title_block
+    (title "PentaFrame - PMC-128 Module Port (Samtec, ESD, EEPROM, I2C Buffer)")
+    (date "2026-05-17")
+    (rev "1.0")
+    (company "PentaFrame Technologies")
+  )
+
+  (lib_symbols
+    (symbol "power:GND" (pin (name "1") (number "1")) (property "Reference" "#PWR") (property "Value" "GND"))
+    (symbol "power:+3.3V" (pin (name "1") (number "1")) (property "Reference" "#PWR") (property "Value" "+3.3V"))
+    (symbol "power:+1.8V" (pin (name "1") (number "1")) (property "Reference" "#PWR") (property "Value" "+1.8V"))
+    (symbol "power:+5V" (pin (name "1") (number "1")) (property "Reference" "#PWR") (property "Value" "+5V"))
+
+    (symbol "Connector_Generic:Conn_04x30_Shielded"
+      (pin (name "A1") (number "A1")) (pin (name "A2") (number "A2"))
+      (pin (name "A3") (number "A3")) (pin (name "A4") (number "A4"))
+      (pin (name "A5") (number "A5")) (pin (name "A6") (number "A6"))
+      (pin (name "A7") (number "A7")) (pin (name "A8") (number "A8"))
+      (pin (name "A9") (number "A9")) (pin (name "A10") (number "A10"))
+      (pin (name "A11") (number "A11")) (pin (name "A12") (number "A12"))
+      (pin (name "A13") (number "A13")) (pin (name "A14") (number "A14"))
+      (pin (name "A15") (number "A15")) (pin (name "A16") (number "A16"))
+      (pin (name "A17") (number "A17")) (pin (name "A18") (number "A18"))
+      (pin (name "A19") (number "A19")) (pin (name "A20") (number "A20"))
+      (pin (name "A21") (number "A21")) (pin (name "A22") (number "A22"))
+      (pin (name "A23") (number "A23")) (pin (name "A24") (number "A24"))
+      (pin (name "A25") (number "A25")) (pin (name "A26") (number "A26"))
+      (pin (name "A27") (number "A27")) (pin (name "A28") (number "A28"))
+      (pin (name "A29") (number "A29")) (pin (name "A30") (number "A30"))
+      (pin (name "B1") (number "B1")) (pin (name "B2") (number "B2"))
+      (pin (name "B3") (number "B3")) (pin (name "B4") (number "B4"))
+      (pin (name "B5") (number "B5")) (pin (name "B6") (number "B6"))
+      (pin (name "B7") (number "B7")) (pin (name "B8") (number "B8"))
+      (pin (name "B9") (number "B9")) (pin (name "B10") (number "B10"))
+      (pin (name "B11") (number "B11")) (pin (name "B12") (number "B12"))
+      (pin (name "B13") (number "B13")) (pin (name "B14") (number "B14"))
+      (pin (name "B15") (number "B15")) (pin (name "B16") (number "B16"))
+      (pin (name "B17") (number "B17")) (pin (name "B18") (number "B18"))
+      (pin (name "B19") (number "B19")) (pin (name "B20") (number "B20"))
+      (pin (name "B21") (number "B21")) (pin (name "B22") (number "B22"))
+      (pin (name "B23") (number "B23")) (pin (name "B24") (number "B24"))
+      (pin (name "B25") (number "B25")) (pin (name "B26") (number "B26"))
+      (pin (name "B27") (number "B27")) (pin (name "B28") (number "B28"))
+      (pin (name "B29") (number "B29")) (pin (name "B30") (number "B30"))
+      (pin (name "C1") (number "C1")) (pin (name "C2") (number "C2"))
+      (pin (name "C3") (number "C3")) (pin (name "C4") (number "C4"))
+      (pin (name "C5") (number "C5")) (pin (name "C6") (number "C6"))
+      (pin (name "C7") (number "C7")) (pin (name "C8") (number "C8"))
+      (pin (name "C9") (number "C9")) (pin (name "C10") (number "C10"))
+      (pin (name "C11") (number "C11")) (pin (name "C12") (number "C12"))
+      (pin (name "C13") (number "C13")) (pin (name "C14") (number "C14"))
+      (pin (name "C15") (number "C15")) (pin (name "C16") (number "C16"))
+      (pin (name "C17") (number "C17")) (pin (name "C18") (number "C18"))
+      (pin (name "C19") (number "C19")) (pin (name "C20") (number "C20"))
+      (pin (name "C21") (number "C21")) (pin (name "C22") (number "C22"))
+      (pin (name "C23") (number "C23")) (pin (name "C24") (number "C24"))
+      (pin (name "C25") (number "C25")) (pin (name "C26") (number "C26"))
+      (pin (name "C27") (number "C27")) (pin (name "C28") (number "C28"))
+      (pin (name "C29") (number "C29")) (pin (name "C30") (number "C30"))
+      (pin (name "D1") (number "D1")) (pin (name "D2") (number "D2"))
+      (pin (name "D3") (number "D3")) (pin (name "D4") (number "D4"))
+      (pin (name "D5") (number "D5")) (pin (name "D6") (number "D6"))
+      (pin (name "D7") (number "D7")) (pin (name "D8") (number "D8"))
+      (pin (name "D9") (number "D9")) (pin (name "D10") (number "D10"))
+      (pin (name "D11") (number "D11")) (pin (name "D12") (number "D12"))
+      (pin (name "D13") (number "D13")) (pin (name "D14") (number "D14"))
+      (pin (name "D15") (number "D15")) (pin (name "D16") (number "D16"))
+      (pin (name "D17") (number "D17")) (pin (name "D18") (number "D18"))
+      (pin (name "D19") (number "D19")) (pin (name "D20") (number "D20"))
+      (pin (name "D21") (number "D21")) (pin (name "D22") (number "D22"))
+      (pin (name "D23") (number "D23")) (pin (name "D24") (number "D24"))
+      (pin (name "D25") (number "D25")) (pin (name "D26") (number "D26"))
+      (pin (name "D27") (number "D27")) (pin (name "D28") (number "D28"))
+      (pin (name "D29") (number "D29")) (pin (name "D30") (number "D30"))
+      (property "Reference" "J10") (property "Value" "PMC-128 Samtec SEAF-30")
+      (property "Footprint" "PentaFrame:PMC128_Receptacle")
+    )
+
+    (symbol "Interface_Protection:TPD4E05U06"
+      (pin (name "IO1") (number "1")) (pin (name "IO2") (number "2"))
+      (pin (name "IO3") (number "3")) (pin (name "IO4") (number "4"))
+      (pin (name "GND") (number "5"))
+      (property "Reference" "U30") (property "Value" "TPD4E05U06")
+      (property "Footprint" "Package_SON:USON-10_2.5x1.0mm_P0.5mm")
+    )
+    (symbol "Interface_Protection:TPD4E05U06"
+      (pin (name "IO1") (number "1")) (pin (name "IO2") (number "2"))
+      (pin (name "IO3") (number "3")) (pin (name "IO4") (number "4"))
+      (pin (name "GND") (number "5"))
+      (property "Reference" "U31") (property "Value" "TPD4E05U06")
+      (property "Footprint" "Package_SON:USON-10_2.5x1.0mm_P0.5mm")
+    )
+    (symbol "Interface_Protection:TPD4E05U06"
+      (pin (name "IO1") (number "1")) (pin (name "IO2") (number "2"))
+      (pin (name "IO3") (number "3")) (pin (name "IO4") (number "4"))
+      (pin (name "GND") (number "5"))
+      (property "Reference" "U32") (property "Value" "TPD4E05U06")
+      (property "Footprint" "Package_SON:USON-10_2.5x1.0mm_P0.5mm")
+    )
+    (symbol "Interface_Protection:TPD4E05U06"
+      (pin (name "IO1") (number "1")) (pin (name "IO2") (number "2"))
+      (pin (name "IO3") (number "3")) (pin (name "IO4") (number "4"))
+      (pin (name "GND") (number "5"))
+      (property "Reference" "U33") (property "Value" "TPD4E05U06")
+      (property "Footprint" "Package_SON:USON-10_2.5x1.0mm_P0.5mm")
+    )
+
+    (symbol "Memory_EEPROM:AT24C02"
+      (pin (name "A0") (number "1")) (pin (name "A1") (number "2")) (pin (name "A2") (number "3"))
+      (pin (name "GND") (number "4")) (pin (name "SDA") (number "5")) (pin (name "SCL") (number "6"))
+      (pin (name "WP") (number "7")) (pin (name "VCC") (number "8"))
+      (property "Reference" "U34") (property "Value" "AT24C02")
+      (property "Footprint" "Package_SO:TSSOP-8_4.4x3mm_P0.65mm")
+    )
+
+    (symbol "Interface_I2C:PCA9517"
+      (pin (name "A0") (number "1")) (pin (name "A1") (number "2"))
+      (pin (name "A2") (number "3")) (pin (name "GND") (number "4"))
+      (pin (name "SCL1") (number "5")) (pin (name "SDA1") (number "6"))
+      (pin (name "SCL0") (number "7")) (pin (name "SDA0") (number "8"))
+      (pin (name "EN") (number "9")) (pin (name "VCC") (number "10"))
+      (property "Reference" "U35") (property "Value" "PCA9517")
+      (property "Footprint" "Package_SO:TSSOP-10_3x3mm_P0.5mm")
+    )
+
+    (symbol "Device:C" (pin (name "1") (number "1")) (pin (name "2") (number "2")) (property "Reference" "C400") (property "Value" "100nF") (property "Footprint" "Capacitor_SMD:C_0402"))
+    (symbol "Device:R" (pin (name "1") (number "1")) (pin (name "2") (number "2")) (property "Reference" "R400") (property "Value" "2.2k") (property "Footprint" "Resistor_SMD:R_0402"))
+    (symbol "Device:R" (pin (name "1") (number "1")) (pin (name "2") (number "2")) (property "Reference" "R401") (property "Value" "2.2k") (property "Footprint" "Resistor_SMD:R_0402"))
+  )
+
+  ; === Компоненты ===
+  (symbol (lib_id "Connector_Generic:Conn_04x30_Shielded") (at 150 150) (unit 1))
+  (symbol (lib_id "Interface_I2C:PCA9517") (at 600 300) (unit 1))
+  (symbol (lib_id "Memory_EEPROM:AT24C02") (at 600 450) (unit 1))
+
+  ; Четыре ESD-сборки
+  (symbol (lib_id "Interface_Protection:TPD4E05U06") (at 100 400) (unit 1)) ; U30: A2-A6, A12-A15
+  (symbol (lib_id "Interface_Protection:TPD4E05U06") (at 200 400) (unit 1)) ; U31: A16-A19, B6-B9
+  (symbol (lib_id "Interface_Protection:TPD4E05U06") (at 300 400) (unit 1)) ; U32: C1-C8
+  (symbol (lib_id "Interface_Protection:TPD4E05U06") (at 400 400) (unit 1)) ; U33: C21-C28
+
+  ; Развязка
+  (symbol (lib_id "Device:C") (at 600 350) (unit 1))
+  (symbol (lib_id "Device:R") (at 550 350) (unit 1))
+  (symbol (lib_id "Device:R") (at 550 400) (unit 1))
+
+  ; === Подключения порта ===
+  ; Ряд A (High-speed + PCIe)
+  (wire (pts (xy 150 110) (xy 200 110))) (global_label "PCIE_TX0_P" (at 200 110))
+  (wire (pts (xy 150 112) (xy 200 112))) (global_label "PCIE_TX0_N" (at 200 112))
+  (wire (pts (xy 150 114) (xy 200 114))) (global_label "PCIE_RX0_P" (at 200 114))
+  (wire (pts (xy 150 116) (xy 200 116))) (global_label "PCIE_RX0_N" (at 200 116))
+  (wire (pts (xy 150 118) (xy 200 118))) (global_label "PCIE_CLK_P" (at 200 118))
+  (wire (pts (xy 150 120) (xy 200 120))) (global_label "PCIE_CLK_N" (at 200 120))
+  (wire (pts (xy 150 122) (xy 200 122))) (global_label "USB3_TX_P" (at 200 122))
+  (wire (pts (xy 150 124) (xy 200 124))) (global_label "USB3_TX_N" (at 200 124))
+  (wire (pts (xy 150 126) (xy 200 126))) (global_label "USB3_RX_P" (at 200 126))
+  (wire (pts (xy 150 128) (xy 200 128))) (global_label "USB3_RX_N" (at 200 128))
+  (wire (pts (xy 150 130) (xy 200 130))) (global_label "USB2_DP" (at 200 130))
+  (wire (pts (xy 150 132) (xy 200 132))) (global_label "USB2_DN" (at 200 132))
+
+  ; Ряд B (Питание + Управление)
+  (wire (pts (xy 150 140) (xy 200 140))) (global_label "VMAIN" (at 200 140))  ; B1-B3, B11,B21,B22,B23
+  (wire (pts (xy 150 142) (xy 200 142))) (global_label "VCC_3V3" (at 200 142)) ; B14,B15,B25,B26
+  (wire (pts (xy 150 144) (xy 200 144))) (global_label "VCC_1V8" (at 200 144)) ; B16
+  (wire (pts (xy 150 146) (xy 200 146))) (global_label "MODULE_DETECT" (at 200 146)) ; B6 (I2C1)
+  (wire (pts (xy 150 148) (xy 200 148))) (global_label "I2C0_SDA" (at 200 148))
+  (wire (pts (xy 150 150) (xy 200 150))) (global_label "I2C0_SCL" (at 200 150))
+  (wire (pts (xy 150 152) (xy 200 152))) (global_label "I2C1_SDA" (at 200 152))
+  (wire (pts (xy 150 154) (xy 200 154))) (global_label "I2C1_SCL" (at 200 154))
+  (wire (pts (xy 150 156) (xy 200 156))) (global_label "MOD_nINT" (at 200 156))
+  (wire (pts (xy 150 158) (xy 200 158))) (global_label "SPI_CS" (at 200 158))
+  (wire (pts (xy 150 160) (xy 200 160))) (global_label "SPI_CLK" (at 200 160))
+  (wire (pts (xy 150 162) (xy 200 162))) (global_label "MOD_nRST" (at 200 162))
+  (wire (pts (xy 150 164) (xy 200 164))) (global_label "BOOT_MODE" (at 200 164))
+
+  ; Ряд C (Последовательные + Аналоговые)
+  (wire (pts (xy 150 170) (xy 200 170))) (global_label "UART0_TX" (at 200 170))
+  (wire (pts (xy 150 172) (xy 200 172))) (global_label "UART0_RX" (at 200 172))
+  (wire (pts (xy 150 174) (xy 200 174))) (global_label "UART1_TX" (at 200 174))
+  (wire (pts (xy 150 176) (xy 200 176))) (global_label "UART1_RX" (at 200 176))
+  (wire (pts (xy 150 178) (xy 200 178))) (global_label "SPI_MOSI" (at 200 178))
+  (wire (pts (xy 150 180) (xy 200 180))) (global_label "SPI_MISO" (at 200 180))
+  (wire (pts (xy 150 182) (xy 200 182))) (global_label "SPI_CLK" (at 200 182))
+  (wire (pts (xy 150 184) (xy 200 184))) (global_label "I2S_SCK" (at 200 184))
+  (wire (pts (xy 150 186) (xy 200 186))) (global_label "I2S_WS" (at 200 186))
+  (wire (pts (xy 150 188) (xy 200 188))) (global_label "I2S_SD" (at 200 188))
+  (wire (pts (xy 150 190) (xy 200 190))) (global_label "GPIO0" (at 200 190))
+  (wire (pts (xy 150 192) (xy 200 192))) (global_label "GPIO1" (at 200 192))
+  (wire (pts (xy 150 194) (xy 200 194))) (global_label "GPIO2" (at 200 194))
+  (wire (pts (xy 150 196) (xy 200 196))) (global_label "GPIO3" (at 200 196))
+  (wire (pts (xy 150 198) (xy 200 198))) (global_label "GPIO4" (at 200 198))
+  (wire (pts (xy 150 200) (xy 200 200))) (global_label "GPIO5" (at 200 200))
+  (wire (pts (xy 150 202) (xy 200 202))) (global_label "GPIO6" (at 200 202))
+  (wire (pts (xy 150 204) (xy 200 204))) (global_label "GPIO7" (at 200 204))
+  (wire (pts (xy 150 206) (xy 200 206))) (global_label "SWD_CLK" (at 200 206))
+  (wire (pts (xy 150 208) (xy 200 208))) (global_label "SWD_IO" (at 200 208))
+  (wire (pts (xy 150 210) (xy 200 210))) (global_label "CAN1_H" (at 200 210))
+  (wire (pts (xy 150 212) (xy 200 212))) (global_label "CAN1_L" (at 200 212))
+  (wire (pts (xy 150 214) (xy 200 214))) (global_label "RS485_A" (at 200 214))
+  (wire (pts (xy 150 216) (xy 200 216))) (global_label "RS485_B" (at 200 216))
+  (wire (pts (xy 150 218) (xy 200 218))) (global_label "ADC0" (at 200 218))
+  (wire (pts (xy 150 220) (xy 200 220))) (global_label "ADC1" (at 200 220))
+  (wire (pts (xy 150 222) (xy 200 222))) (global_label "ADC2" (at 200 222))
+  (wire (pts (xy 150 224) (xy 200 224))) (global_label "12V" (at 200 224))
+
+  ; Земля на всех GND пинах (A1,A4,A7,A10,A14,A17,A20,A24,A25,A29,A30,B4,B10,B13,B24,B29,B30,C30,D30)
+  (power_symbol "GND" (at 100 100))
+  (wire (pts (xy 150 100) (xy 100 100)))
+  (global_label "GND_PMC" (at 150 100))
+
+  ; === ESD защита (упрощённо показаны линии от порта до ESD, потом дальше) ===
+  ; U30: A2,A3,A5,A6,A12,A13,A15,A16 (первые 8 высокоскоростных линий)
+  (wire (pts (xy 150 110) (xy 100 400))) (wire (pts (xy 150 112) (xy 100 400)))
+  (wire (pts (xy 150 114) (xy 100 400))) (wire (pts (xy 150 116) (xy 100 400)))
+  ; U31 ...
+  (wire (pts (xy 150 122) (xy 200 400))) (wire (pts (xy 150 124) (xy 200 400)))
+  (wire (pts (xy 150 126) (xy 200 400))) (wire (pts (xy 150 128) (xy 200 400)))
+  ; U32 ...
+  (wire (pts (xy 150 170) (xy 300 400))) (wire (pts (xy 150 172) (xy 300 400)))
+  (wire (pts (xy 150 174) (xy 300 400))) (wire (pts (xy 150 176) (xy 300 400)))
+  ; U33 ...
+  (wire (pts (xy 150 210) (xy 400 400))) (wire (pts (xy 150 212) (xy 400 400)))
+  (wire (pts (xy 150 218) (xy 400 400))) (wire (pts (xy 150 220) (xy 400 400)))
+
+  (power_symbol "GND" (at 100 420))
+  (wire (pts (xy 100 400) (xy 100 420)))   ; U30 GND
+  (power_symbol "GND" (at 200 420))
+  (wire (pts (xy 200 400) (xy 200 420)))   ; U31 GND
+  (power_symbol "GND" (at 300 420))
+  (wire (pts (xy 300 400) (xy 300 420)))   ; U32 GND
+  (power_symbol "GND" (at 400 420))
+  (wire (pts (xy 400 400) (xy 400 420)))   ; U33 GND
+
+  ; === Буфер I2C для модулей (PCA9517) ===
+  (wire (pts (xy 600 300) (xy 600 320)))
+  (global_label "I2C1_SDA_MASTER" (at 600 320))
+  (wire (pts (xy 600 340) (xy 600 360)))
+  (global_label "I2C1_SCL_MASTER" (at 600 360))
+  (wire (pts (xy 600 300) (xy 550 300)))
+  (wire (pts (xy 550 300) (xy 550 320)))
+  (wire (pts (xy 550 320) (xy 550 300))) ; SDA1 <-> MODULE_DETECT линия
+  (global_label "MODULE_DETECT" (at 550 320))
+  (wire (pts (xy 600 280) (xy 600 260)))
+  (global_label "I2C1_SCL_MODULE" (at 600 260))
+  (wire (pts (xy 600 270) (xy 600 250)))
+  (global_label "I2C1_SDA_MODULE" (at 600 250))
+
+  ; Питание PCA9517
+  (wire (pts (xy 600 300) (xy 600 380)))
+  (power_symbol "+3.3V" (at 600 380))
+  (wire (pts (xy 600 300) (xy 600 400)))
+  (power_symbol "GND" (at 600 400))
+
+  ; === EEPROM модуля ===
+  (wire (pts (xy 600 450) (xy 600 430)))
+  (wire (pts (xy 600 430) (xy 600 250))) ; SDA
+  (wire (pts (xy 600 450) (xy 600 470)))
+  (wire (pts (xy 600 470) (xy 600 260))) ; SCL
+  (wire (pts (xy 600 450) (xy 600 490)))
+  (power_symbol "+3.3V" (at 600 490))
+  (wire (pts (xy 600 450) (xy 600 510)))
+  (power_symbol "GND" (at 600 510))
+  (wire (pts (xy 600 350) (xy 600 330))) ; A0/A1/A2 GND
+  (power_symbol "GND" (at 600 330))
+
+  ; === Подтяжки I2C (к основной шине) ===
+  (wire (pts (xy 550 350) (xy 550 370)))
+  (power_symbol "+3.3V" (at 550 370))
+  (wire (pts (xy 550 350) (xy 600 300))) ; подтяжка SDA
+  (wire (pts (xy 550 400) (xy 550 420)))
+  (power_symbol "+3.3V" (at 550 420))
+  (wire (pts (xy 550 400) (xy 600 340))) ; подтяжка SCL
+)
