@@ -87,7 +87,7 @@ jobs:
           find . -name '*.img.xz' -exec sha256sum {} \; > SHA256SUMS
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: Penta OS ${{ github.ref_name }}
           body: |
