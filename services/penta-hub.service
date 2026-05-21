@@ -1,0 +1,29 @@
+[Unit]
+Description=Penta Hub - Repository Aggregator
+After=network.target mosquitto.service
+Requires=mosquitto.service
+
+[Service]
+Type=simple
+User=penta
+Group=penta
+ExecStart=/usr/bin/python3 /opt/penta/src/hub/penta-hub.py
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/penta /var/tmp
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target
