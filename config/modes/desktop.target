@@ -1,0 +1,12 @@
+[Unit]
+Description=Penta OS Desktop Mode
+Requires=multi-user.target
+Wants=display-manager.service
+Wants=network-manager.service
+Wants=bluetooth.service
+Wants=penta-hub.service
+Wants=penta-resolver.service
+After=multi-user.target
+
+[Install]
+WantedBy=penta-desktop.target
