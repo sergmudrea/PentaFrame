@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+*.egg
+.python-version
+
+# Virtual environments
+env/
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+/output/
+/build/
+/tmp/
+*.img
+*.img.xz
+*.tar.gz
+
+# Configuration with secrets
+config/local.yaml
+*.pem
+*.key
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Git
+.git/
+.gitignore
+.gitattributes
