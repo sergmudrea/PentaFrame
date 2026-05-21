@@ -2,7 +2,7 @@
 
 ![Penta OS Logo](https://via.placeholder.com/200x100?text=Penta+OS)
 
-**Version:** 1.6.0 (Prototype)
+**Version:** 1.7.0
 **Status:** Active Development
 **License:** GPL-3.0-or-later
 **Website:** [https://pentaos.org](https://pentaos.org) (coming soon)
@@ -54,21 +54,23 @@ Penta OS is a Debian‑based operating system that breaks down all barriers betw
 
 At its heart, Penta OS is an **aggregator** and **orchestrator**. It indexes packages from dozens of repositories (APT, AUR, RPM Fusion, PyPI, Homebrew, Flathub, GitHub, and more) and, when you ask for a piece of software, automatically selects the best source, creates an isolated container with the correct environment, installs the package, and integrates it seamlessly into your desktop — complete with icons, shortcuts, and hardware access.
 
-Penta OS is designed for the **PentaFrame** modular hardware platform but runs on any ARM64 (and soon x86_64) device, from Raspberry Pi to powerful workstations.
+The current GUI (Penta Store) is a **prototype** that demonstrates the concept and works with the Resolver API. It will be replaced with a full Qt6/KDE‑native store in the upcoming releases.
+
+Penta OS is designed for the **PentaFrame** modular hardware platform but runs on any ARM64 (and x86_64) device, from Raspberry Pi to powerful workstations.
 
 ---
 
 ## Key Features
 
-- **Universal Package Manager**: Install software from APT, AUR, RPM, PyPI, npm, Homebrew, Snap, Flatpak, AppImage, GitHub, and even Windows executables.
-- **One‑Click Installation**: The Penta Store GUI offers a unified app catalog, ranking packages by version, popularity, and compatibility.
-- **Smart Containerisation**: Every non‑base application runs in its own container (using Distrobox + balenaEngine), keeping your system clean and secure.
+- **Universal Package Manager**: Install software from APT, AUR, RPM, PyPI, npm, Homebrew, Flatpak, Snap, AppImage, GitHub, and even Windows executables.
+- **One‑Click Installation**: The Penta Store GUI (prototype) and `penta` CLI offer a unified interface. All applications appear in the system menu after install.
+- **Smart Containerisation**: Every non‑base application runs in its own container (Distrobox + Docker), keeping your system clean and secure.
 - **Windows App Support**: Run x86_64 Windows applications on ARM64 via integrated Box64 + Wine + DXVK — at near‑native speed.
 - **Cross‑Architecture**: Automatic multi‑arch handling (binfmt_misc, qemu‑user, Box64) makes ARM and x86 binaries coexist.
 - **Hardware Passthrough**: RF modules, GPUs, USB devices, and NVMe storage are automatically made available to containers that need them.
 - **Mode Switcher**: Instantly transform your device into a phone, desktop, pentest platform, router, smart home hub, or AI node.
 - **Btrfs + Snapper**: Instant snapshots and one‑command rollback protect you from bad installations.
-- **Hardened Security**: TPM‑backed measured boot, AppArmor, seccomp filters, per‑app encryption, and a physical kill‑switch for radios.
+- **Hardened Security**: Unix socket API, TPM‑backed measured boot, AppArmor, seccomp filters, per‑app encryption, and a physical kill‑switch for radios.
 - **Extensible Repository System**: Teach Penta OS to use **any** new package source (private PPA, corporate Artifactory, niche format) by writing a simple YAML plugin — no code changes needed.
 
 ---
@@ -96,7 +98,7 @@ Penta OS is designed for the **PentaFrame** modular hardware platform but runs o
 - NVMe SSD (via HAT or integrated)
 - Vulkan‑capable GPU for Windows/gaming workloads
 
-**x86_64:** Penta OS also works natively on amd64, but the Windows emulation layer is simpler (no Box64 needed, just Wine). Development is focused on ARM64 first.
+**x86_64:** Penta OS also works natively on amd64; the Windows emulation layer is simpler (no Box64 needed, just Wine). Development is focused on ARM64 first.
 
 ---
 
@@ -104,10 +106,10 @@ Penta OS is designed for the **PentaFrame** modular hardware platform but runs o
 
 If you just want to try Penta OS on a Raspberry Pi:
 
-1. Download the latest prebuilt image (`penta-os-1.6.0-rpi5.img.xz`) from the [releases page](https://github.com/penta-os/core/releases).
+1. Download the latest prebuilt image (`penta-os-1.7.0-rpi5.img.xz`) from the [releases page](https://github.com/penta-os/core/releases).
 2. Flash it to an SD card using [Raspberry Pi Imager](https://www.raspberrypi.com/software/) or `dd`.
 3. Insert the card, power on, and connect via SSH (user: `penta`, password: `penta`; change immediately).
-4. Run the setup wizard: `penta setup`.
+4. Run the setup wizard: `penta setup` (if available, else proceed with CLI).
 5. Open Penta Store by typing `penta-store` on the desktop or via the application menu.
 6. Search for software (e.g., `firefox`, `metasploit`, `notepad++`), click Install, and watch the magic happen.
 
@@ -168,7 +170,7 @@ Once completed, you are ready to install software.
 Using Penta OS
 Penta Store (GUI)
 
-Launch the Penta Store from the application menu or by running penta-store in a terminal. The store has a clean, searchable interface with categories like Pentest, SDR, Productivity, Games, and more.
+Launch the Penta Store from the application menu or by running penta-store in a terminal. The current prototype has a searchable interface and allows one‑click installation. It will be replaced by a full KDE‑native store in a future release.
 
     Search: type a name and see results from all indexed repositories.
 
@@ -183,14 +185,16 @@ penta CLI
 The command‑line interface is just as powerful:
 bash
 
-penta install metasploit            # install the best available version
-penta install notepad++ from github # install from GitHub
-penta search wireshark              # find all matching packages
-penta list                          # list installed apps
-penta remove firefox                # uninstall
-penta mode set pentest              # switch to Pentest mode
-penta module list                   # show connected hardware modules
-penta system info                   # health and resource usage
+penta install firefox                      # install the best available version
+penta install --source aur metasploit       # force a specific source
+penta install --source github user/repo     # install from GitHub
+penta install --source appimage <url>       # install an AppImage
+penta search wireshark                      # find all matching packages
+penta list                                  # list installed apps
+penta remove firefox                        # uninstall
+penta mode set pentest                      # switch to Pentest mode
+penta module list                           # show connected hardware modules
+penta system info                           # health and resource usage
 
 Installing Software from Any Source
 
@@ -220,7 +224,7 @@ Switching modes can be done from the GUI or with penta mode set <mode>. The syst
 Core Components
 Penta Hub
 
-A RESTful microservice that aggregates package metadata from all configured repositories and plugins. It runs locally (localhost:8400) and periodically updates its index. In cluster setups, multiple hubs can synchronise over a gossip protocol. Endpoints:
+A RESTful microservice that aggregates package metadata from all configured repositories and plugins. It listens on a Unix socket (/run/penta/hub.sock) and periodically updates its index. Endpoints:
 
     GET /api/v1/search?q=<query> – search for packages
 
@@ -232,7 +236,7 @@ A RESTful microservice that aggregates package metadata from all configured repo
 
 Penta Resolver
 
-The brain of the operation. Resolver takes an installation request, queries the Hub, ranks results, ensures the required container environment exists, executes the install command (using the plugin's install template), and creates desktop integration files. It also handles dependency walking and hardware passthrough decisions. All actions are wrapped in Btrfs snapshots for easy rollback.
+The brain of the operation. Resolver takes an installation request, queries the Hub, ranks results, ensures the required container environment exists, executes the install command (using the plugin's install template), and creates desktop integration files. It also handles dependency walking and hardware passthrough decisions. All actions are wrapped in Btrfs snapshots for easy rollback. Listens on /run/penta/resolver.sock.
 pentad (Module Daemon)
 
 Daemon that scans the I²C bus for attached PMC‑128 modules, reads their EEPROMs, and publishes attach/detach events to MQTT. It also provides a REST API for power control and module status. Hardened with seccomp and AppArmor.
@@ -261,7 +265,7 @@ How It Works
 
     Penta Hub loads plugins automatically – on startup, the Hub scans /etc/penta/plugins/ for *.yaml files and registers every source.
 
-    Crawlers index the new source – the plugin's index method tells the Hub how to fetch a list of available packages. This can be a simple REST call, parsing a Packages file, or executing a script inside a container. The retrieved data populates the Hub's database.
+    Crawlers index the new source – the plugin's index method tells the Hub how to fetch a list of available packages. The retrieved data populates the Hub's database.
 
     Installation uses the plugin template – when a user requests a package from that source, the Resolver takes the install command from the plugin, substitutes the package name, and runs it inside the specified container.
 
@@ -316,9 +320,9 @@ Adding a Plugin
 
     Restart the Hub: sudo systemctl restart penta-hub.
 
-    Verify it loaded: curl http://localhost:8400/api/v1/plugins.
+    Verify it loaded: curl unix:///run/penta/hub.sock/api/v1/plugins (if using TCP fallback, http://localhost:8400).
 
-    Trigger a reindex: penta hub reindex or curl -X POST http://localhost:8400/api/v1/reindex.
+    Trigger a reindex: penta hub reindex or curl -X POST .../api/v1/reindex.
 
     Install packages from your new source: penta install --source my-repo <package>.
 
@@ -333,11 +337,9 @@ text
 [ Penta Resolver ] – decision engine, container orchestrator
         |
 [ Penta Hub ]        [ Container Runtime ]   [ Module Daemon (pentad) ]
-   (metadata + plugins)  (Distrobox/balenaEngine)      (I²C, GPIO, MQTT)
+   (metadata + plugins)  (Distrobox/Docker)      (I²C, GPIO, MQTT)
 
-All components communicate via REST and MQTT (Mosquitto broker). Containers share the host kernel but use separate userspaces with security profiles.
-
-The host OS is a stripped‑down Debian with Btrfs, Snapper, and a hardened kernel. Container images are pre‑built for Arch, Fedora, Kali, and Windows (Wine), among others.
+All components communicate via REST and MQTT (Mosquitto broker). Hub and Resolver listen on Unix domain sockets (/run/penta/*.sock) owned by penta:penta with mode 660 – only processes in the penta group can access them. The host OS is a stripped‑down Debian with Btrfs, Snapper, and a hardened kernel.
 Supported Package Ecosystems
 Source	Install Method	Status
 Debian/Ubuntu	Native APT or container	Stable
@@ -350,7 +352,7 @@ Homebrew	Linuxbrew on host or container	Beta
 Flathub	Flatpak on host/container	Stable
 Snap Store	Snapd on host	Beta
 AppImage	Direct download + integration	Stable
-GitHub/GitLab	Clone, build system auto‑detect, install	Alpha
+GitHub/GitLab	Clone, auto-detect build system, install	Alpha
 Windows .exe	Wine + Box64 container, community recipes	Alpha (ARM)
 Android APK	Waydroid container	Experimental
 Custom	Via plugin system (YAML)	Extensible
@@ -362,6 +364,8 @@ All RF modules are linked to a physical kill‑switch that cuts power directly. 
 Security
 
 Security is a first‑class design principle:
+
+    API isolation: Hub and Resolver listen on Unix domain sockets (/run/penta/hub.sock, /run/penta/resolver.sock), accessible only by the penta group. No network ports are exposed to localhost or the internet.
 
     Boot integrity: U‑Boot/GRUB with Secure Boot, fTPM measured boot, dm‑verity rootfs.
 
@@ -420,7 +424,7 @@ The master configuration is /etc/penta/config.yaml:
 yaml
 
 hub:
-  endpoint: "http://localhost:8400"
+  endpoint: "unix:///run/penta/hub.sock"
   refresh_interval: 21600   # 6 hours
 resolver:
   default_user: "penta"
@@ -440,7 +444,7 @@ Troubleshooting
 
     Installation fails: Check logs at /var/log/penta/resolver.log. Use penta log install to see the last attempt.
 
-    Container won't start: Ensure balena-engine is running (systemctl status balena-engine). Try distrobox list to see all containers.
+    Container won't start: Ensure Docker is running (systemctl status docker). Try distrobox list to see all containers.
 
     Hardware not detected: Run i2cdetect -y 1 to check if the module is visible. Restart pentad: systemctl restart pentad.
 
@@ -449,6 +453,8 @@ Troubleshooting
     Rollback: sudo snapper list and sudo snapper undochange <old>..<new>.
 
     Plugin not loaded: Verify the YAML syntax, restart penta-hub, check /var/log/penta/hub.log.
+
+    Socket connection refused: Ensure the Hub and Resolver services are running and their socket files exist (ls -l /run/penta/). Make sure you are in the penta group.
 
 For more, see the Troubleshooting Guide.
 FAQ
@@ -472,13 +478,11 @@ Q: How do I add my company's private repository?
 A: Write a YAML plugin file, place it in /etc/penta/plugins/, and restart the Hub. See the Extensible Repository System section for examples.
 Roadmap
 
-    Q2 2025: Stable CLI, GUI beta, AUR/APT/Flatpak/pip support.
+    Q3 2026: Full KDE‑native Penta Store, improved Windows support, Flatpak/Snap deep integration.
 
-    Q3 2025: Windows support (Box64+Wine) fully integrated, GitHub installer, Mode Switcher v1.
+    Q4 2026: Cluster federation, P2P Hub, AI‑powered recommendations.
 
-    Q4 2025: Cluster federation, AI node mode, P2P Hub.
-
-    2026: Android app interoperability, security audit, plugin marketplace, 1.0 release.
+    2027: 1.0 release.
 
 Community
 
