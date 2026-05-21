@@ -1,0 +1,63 @@
+# Penta OS Configuration (example)
+# Copy this file to /etc/penta/config.yaml and adjust to your needs.
+
+hub:
+  # Where to reach the Penta Hub aggregator
+  endpoint: "localhost:8400"
+  # Interval in seconds between automatic reindexing
+  refresh_interval: 21600
+  # Backend type: sqlite (default), redis, memory
+  cache_backend: "sqlite"
+  # List of peer hub nodes for federation (IP:port)
+  peer_nodes: []
+
+resolver:
+  # Container engine: distrobox or docker
+  container_engine: "distrobox"
+  # Registry to pull toolbox images from
+  default_image_registry: "ghcr.io/penta-os/toolboxes"
+  # Automatically create Btrfs snapshot before each install
+  auto_rollback: true
+  # Hardware profile: auto (detect via pentad), manual list, or none
+  hardware_profile: "auto"
+  # Directory for seccomp profiles
+  seccomp_profiles_dir: "/etc/penta/seccomp"
+  # Directory for AppArmor profiles
+  apparmor_profiles_dir: "/etc/apparmor.d"
+  # Temporary directory for installation processes
+  temp_dir: "/var/tmp/penta-install"
+  # Maximum parallel installs
+  max_concurrent_installs: 2
+
+modes:
+  # Default mode after boot
+  default: "desktop"
+  # Directory containing systemd service files for each mode
+  services_dir: "/etc/penta/modes"
+
+security:
+  # Enforce AppArmor profiles on Penta daemons
+  apparmor_enforce: true
+  # Enforce seccomp filters on Penta daemons
+  seccomp_enforce: true
+  # Use TPM 2.0 for key sealing (set true if available)
+  tpm: false
+  # Enable measured boot (requires TPM)
+  measured_boot: false
+  # GPIO pin for hardware kill switch (active low)
+  killswitch_gpio: 27
+
+logging:
+  # Log level: debug, info, warning, error
+  level: "info"
+  # Log to systemd journal
+  journald: true
+  # Also publish logs to MQTT topic
+  mqtt_topic: "penta/log"
+
+mqtt:
+  # MQTT broker host
+  broker: "localhost"
+  port: 1883
+  client_id: "penta-os"
+  keepalive: 60
