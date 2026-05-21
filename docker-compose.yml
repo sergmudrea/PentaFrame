@@ -1,0 +1,58 @@
+version: '3.9'
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: penta-mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+      - ./config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    restart: unless-stopped
+
+  penta-hub:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: penta-hub
+    command: uvicorn src.hub.penta-hub:app --host 0.0.0.0 --port 8400 --reload
+    ports:
+      - "8400:8400"
+    volumes:
+      - ./src:/app/src
+      - ./config:/app/config
+      - hub-data:/var/lib/penta
+    environment:
+      - PENTA_CONFIG=/app/config/penta.conf.example
+    depends_on:
+      - mosquitto
+    restart: unless-stopped
+
+  penta-resolver:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: penta-resolver
+    command: uvicorn src.resolver.penta-resolver:app --host 0.0.0.0 --port 8500 --reload
+    ports:
+      - "8500:8500"
+    volumes:
+      - ./src:/app/src
+      - ./config:/app/config
+      - resolver-data:/var/lib/penta
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - PENTA_CONFIG=/app/config/penta.conf.example
+    depends_on:
+      - penta-hub
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  mosquitto-data:
+  mosquitto-log:
+  hub-data:
+  resolver-data:
