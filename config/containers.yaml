@@ -1,0 +1,56 @@
+# Penta OS Container Toolbox Definitions
+# Each toolbox defines a container image and its package manager.
+
+toolboxes:
+  debian-stable:
+    image: "debian:stable-slim"
+    package_manager: "apt"
+    init: false
+    pre_install: "apt update"
+    user: "penta"
+
+  arch-toolbox:
+    image: "archlinux:latest"
+    package_manager: "pacman"
+    aur_helper: "yay"
+    init: true
+    pre_install: "pacman -Syu --noconfirm"
+    user: "builder"
+
+  fedora-toolbox:
+    image: "fedora:latest"
+    package_manager: "dnf"
+    copr: ["rpmfusion-free", "rpmfusion-nonfree"]
+    pre_install: "dnf -y update"
+    user: "penta"
+
+  kali-toolbox:
+    image: "kalilinux/kali-rolling"
+    package_manager: "apt"
+    init: true
+    pre_install: "apt update"
+    user: "pentester"
+
+  python-slim:
+    image: "python:3.14"
+    package_manager: "pip"
+    user: "pyuser"
+
+  node-slim:
+    image: "node:24-slim"
+    package_manager: "npm"
+    global_install: true
+    user: "nodeuser"
+
+  winbox:
+    image: "ghcr.io/penta-os/winbox:latest"
+    package_manager: "wine"
+    exec_prefix: "box64 wine"
+    init: true
+    user: "penta"
+
+  homebrew:
+    image: "linuxbrew/brew:latest"
+    package_manager: "brew"
+    host_integration: true
+    user: "brewuser"
