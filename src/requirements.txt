@@ -31,7 +31,7 @@ pydantic==2.8.0
 sqlalchemy==2.0.31
 
 # Logging
-loguru==0.7.2
+loguru==0.7.3
 
 # ---------- Hardware / System ----------
 # I²C bus access (pentad)
