@@ -41,14 +41,14 @@ toolboxes:
     user: "pentester"
 
   python-slim:
-    image: "python:3.12-slim"
+    image: "python:3.14-slim"
     package_manager: "pip"
     install_command: "pip install {package}"
     uninstall_command: "pip uninstall -y {package}"
     user: "pyuser"
 
   node-slim:
-    image: "node:20-slim"
+    image: "node:24-slim"
     package_manager: "npm"
     global_install: true
     install_command: "npm install -g {package}"
