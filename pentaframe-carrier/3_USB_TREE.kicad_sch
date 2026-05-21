@@ -1,0 +1,268 @@
+(kicad_sch (version 20240108) (generator "kicad_sch")
+  (paper "A3")
+  (title_block
+    (title "PentaFrame - USB Tree (VL805, VL817, FE1.1s, USB-C Ports)")
+    (date "2026-05-17")
+    (rev "1.0")
+    (company "PentaFrame Technologies")
+  )
+
+  (lib_symbols
+    (symbol "power:GND" (pin (name "1") (number "1")) (property "Reference" "#PWR") (property "Value" "GND"))
+    (symbol "power:+3.3V" (pin (name "1") (number "1")) (property "Reference" "#PWR") (property "Value" "+3.3V"))
+    (symbol "power:+1.1V" (pin (name "1") (number "1")) (property "Reference" "#PWR") (property "Value" "+1.1V"))
+    (symbol "power:+5V" (pin (name "1") (number "1")) (property "Reference" "#PWR") (property "Value" "+5V"))
+
+    (symbol "Interface_USB:VL805-Q8"
+      (pin (name "USB3_RX_P") (number "1")) (pin (name "USB3_RX_N") (number "2"))
+      (pin (name "USB3_TX_P") (number "3")) (pin (name "USB3_TX_N") (number "4"))
+      (pin (name "USB2_DP") (number "5")) (pin (name "USB2_DN") (number "6"))
+      (pin (name "REFCLK") (number "7"))
+      (pin (name "DP1_TX_P") (number "8")) (pin (name "DP1_TX_N") (number "9"))
+      (pin (name "DP1_RX_P") (number "10")) (pin (name "DP1_RX_N") (number "11"))
+      (pin (name "DP2_TX_P") (number "12")) (pin (name "DP2_TX_N") (number "13"))
+      (pin (name "DP2_RX_P") (number "14")) (pin (name "DP2_RX_N") (number "15"))
+      (pin (name "DP3_TX_P") (number "16")) (pin (name "DP3_TX_N") (number "17"))
+      (pin (name "DP3_RX_P") (number "18")) (pin (name "DP3_RX_N") (number "19"))
+      (pin (name "DP4_TX_P") (number "20")) (pin (name "DP4_TX_N") (number "21"))
+      (pin (name "DP4_RX_P") (number "22")) (pin (name "DP4_RX_N") (number "23"))
+      (pin (name "USB2_DP1") (number "24")) (pin (name "USB2_DN1") (number "25"))
+      (pin (name "USB2_DP2") (number "26")) (pin (name "USB2_DN2") (number "27"))
+      (pin (name "USB2_DP3") (number "28")) (pin (name "USB2_DN3") (number "29"))
+      (pin (name "USB2_DP4") (number "30")) (pin (name "USB2_DN4") (number "31"))
+      (pin (name "PWR_EN1") (number "32")) (pin (name "PWR_EN2") (number "33"))
+      (pin (name "PWR_EN3") (number "34")) (pin (name "PWR_EN4") (number "35"))
+      (pin (name "CFG_SEL0") (number "36")) (pin (name "CFG_SEL1") (number "37"))
+      (pin (name "NVM_SDA") (number "38")) (pin (name "NVM_SCL") (number "39"))
+      (pin (name "VDD_3V3") (number "40")) (pin (name "VDD_1V1") (number "41"))
+      (pin (name "GND") (number "42"))
+      (property "Reference" "U10") (property "Value" "VL805-Q8")
+      (property "Footprint" "Package_DFN_QFN:QFN-76-1EP_9x9mm_P0.4mm_EP3.8x3.8mm")
+    )
+    (symbol "Interface_USB:VL817-Q7"
+      (pin (name "USB3_RX_P") (number "1")) (pin (name "USB3_RX_N") (number "2"))
+      (pin (name "USB3_TX_P") (number "3")) (pin (name "USB3_TX_N") (number "4"))
+      (pin (name "USB2_DP") (number "5")) (pin (name "USB2_DN") (number "6"))
+      (pin (name "DP1_TX_P") (number "7")) (pin (name "DP1_TX_N") (number "8"))
+      (pin (name "DP1_RX_P") (number "9")) (pin (name "DP1_RX_N") (number "10"))
+      (pin (name "DP2_TX_P") (number "11")) (pin (name "DP2_TX_N") (number "12"))
+      (pin (name "DP2_RX_P") (number "13")) (pin (name "DP2_RX_N") (number "14"))
+      (pin (name "DP3_TX_P") (number "15")) (pin (name "DP3_TX_N") (number "16"))
+      (pin (name "DP3_RX_P") (number "17")) (pin (name "DP3_RX_N") (number "18"))
+      (pin (name "DP4_TX_P") (number "19")) (pin (name "DP4_TX_N") (number "20"))
+      (pin (name "DP4_RX_P") (number "21")) (pin (name "DP4_RX_N") (number "22"))
+      (pin (name "USB2_DP1") (number "23")) (pin (name "USB2_DN1") (number "24"))
+      (pin (name "USB2_DP2") (number "25")) (pin (name "USB2_DN2") (number "26"))
+      (pin (name "USB2_DP3") (number "27")) (pin (name "USB2_DN3") (number "28"))
+      (pin (name "USB2_DP4") (number "29")) (pin (name "USB2_DN4") (number "30"))
+      (pin (name "VDD_3V3") (number "31")) (pin (name "VDD_1V1") (number "32"))
+      (pin (name "GND") (number "33"))
+      (property "Reference" "U11") (property "Value" "VL817-Q7")
+      (property "Footprint" "Package_DFN_QFN:QFN-56-1EP_7x7mm_P0.4mm_EP3.8x3.8mm")
+    )
+    (symbol "Interface_USB:FE1.1s"
+      (pin (name "USB_DP") (number "1")) (pin (name "USB_DN") (number "2"))
+      (pin (name "DP1") (number "3")) (pin (name "DN1") (number "4"))
+      (pin (name "DP2") (number "5")) (pin (name "DN2") (number "6"))
+      (pin (name "DP3") (number "7")) (pin (name "DN3") (number "8"))
+      (pin (name "DP4") (number "9")) (pin (name "DN4") (number "10"))
+      (pin (name "VDD") (number "11")) (pin (name "GND") (number "12"))
+      (property "Reference" "U12") (property "Value" "FE1.1s")
+      (property "Footprint" "Package_SO:SSOP-28_5.3x10.2mm_P0.65mm")
+    )
+    (symbol "Connector:USB_C_Receptacle"
+      (pin (name "VBUS") (number "1")) (pin (name "CC1") (number "2")) (pin (name "CC2") (number "3"))
+      (pin (name "SBU1") (number "4")) (pin (name "SBU2") (number "5"))
+      (pin (name "D+") (number "6")) (pin (name "D-") (number "7"))
+      (pin (name "SSTX+") (number "8")) (pin (name "SSTX-") (number "9"))
+      (pin (name "SSRX+") (number "10")) (pin (name "SSRX-") (number "11"))
+      (pin (name "GND") (number "12"))
+      (property "Reference" "J") (property "Value" "USB_C")
+      (property "Footprint" "Connector_USB:USB_C_Receptacle_Midmount")
+    )
+    (symbol "Power_Management:AP22804"
+      (pin (name "VIN") (number "1")) (pin (name "VOUT") (number "2"))
+      (pin (name "EN") (number "3")) (pin (name "GND") (number "4"))
+      (property "Reference" "U") (property "Value" "AP22804")
+      (property "Footprint" "Package_TO_SOT_SMD:SOT-23-4")
+    )
+    (symbol "Device:C" (pin (name "1") (number "1")) (pin (name "2") (number "2"))
+      (property "Reference" "C") (property "Value" "220nF") (property "Footprint" "Capacitor_SMD:C_0201"))
+    (symbol "Device:C" (pin (name "1") (number "1")) (pin (name "2") (number "2"))
+      (property "Reference" "C") (property "Value" "100nF") (property "Footprint" "Capacitor_SMD:C_0402"))
+    (symbol "Device:C" (pin (name "1") (number "1")) (pin (name "2") (number "2"))
+      (property "Reference" "C") (property "Value" "10uF") (property "Footprint" "Capacitor_SMD:C_0603"))
+    (symbol "Device:R" (pin (name "1") (number "1")) (pin (name "2") (number "2"))
+      (property "Reference" "R") (property "Value" "5.1k") (property "Footprint" "Resistor_SMD:R_0402"))
+    (symbol "Device:Ferrite_Bead" (pin (name "1") (number "1")) (pin (name "2") (number "2"))
+      (property "Reference" "FB") (property "Value" "BLM18RK601SN1") (property "Footprint" "Inductor_SMD:L_0603"))
+  )
+
+  ; === Компоненты ===
+  (symbol (lib_id "Interface_USB:VL805-Q8") (at 100 150) (unit 1))
+  (symbol (lib_id "Interface_USB:VL817-Q7") (at 350 150) (unit 1))
+  (symbol (lib_id "Interface_USB:FE1.1s") (at 100 350) (unit 1))
+
+  ; USB-C Port 1 (PD + Data)
+  (symbol (lib_id "Connector:USB_C_Receptacle") (at 50 50) (unit 1) (property "Reference" "J4") (property "Value" "USB-C1_PD"))
+  ; USB-C Port 2 (OTG)
+  (symbol (lib_id "Connector:USB_C_Receptacle") (at 200 50) (unit 1) (property "Reference" "J5") (property "Value" "USB-C2_OTG"))
+  ; USB-C Port 3 (Node A)
+  (symbol (lib_id "Connector:USB_C_Receptacle") (at 450 50) (unit 1) (property "Reference" "J6") (property "Value" "USB-C3_NODEA"))
+  ; USB-C Port 4 (Node B)
+  (symbol (lib_id "Connector:USB_C_Receptacle") (at 600 50) (unit 1) (property "Reference" "J7") (property "Value" "USB-C4_NODEB"))
+
+  ; Load switches для VBUS портов
+  (symbol (lib_id "Power_Management:AP22804") (at 150 80) (unit 1) (property "Reference" "U13") (property "Value" "AP22804"))
+  (symbol (lib_id "Power_Management:AP22804") (at 300 80) (unit 1) (property "Reference" "U14") (property "Value" "AP22804"))
+  (symbol (lib_id "Power_Management:AP22804") (at 500 80) (unit 1) (property "Reference" "U15") (property "Value" "AP22804"))
+  (symbol (lib_id "Power_Management:AP22804") (at 650 80) (unit 1) (property "Reference" "U16") (property "Value" "AP22804"))
+
+  ; Развязка питания
+  (symbol (lib_id "Device:C") (at 80 120) (unit 1) (property "Reference" "C200") (property "Value" "10uF"))
+  (symbol (lib_id "Device:C") (at 120 120) (unit 1) (property "Reference" "C201") (property "Value" "10uF"))
+  (symbol (lib_id "Device:C") (at 160 120) (unit 1) (property "Reference" "C202") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 200 120) (unit 1) (property "Reference" "C203") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 300 120) (unit 1) (property "Reference" "C204") (property "Value" "10uF"))
+  (symbol (lib_id "Device:C") (at 340 120) (unit 1) (property "Reference" "C205") (property "Value" "10uF"))
+  (symbol (lib_id "Device:C") (at 380 120) (unit 1) (property "Reference" "C206") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 420 120) (unit 1) (property "Reference" "C207") (property "Value" "100nF"))
+
+  ; AC coupling caps на SuperSpeed
+  (symbol (lib_id "Device:C") (at 80 200) (unit 1) (property "Reference" "C208") (property "Value" "220nF"))
+  (symbol (lib_id "Device:C") (at 120 200) (unit 1) (property "Reference" "C209") (property "Value" "220nF"))
+  (symbol (lib_id "Device:C") (at 350 200) (unit 1) (property "Reference" "C210") (property "Value" "220nF"))
+  (symbol (lib_id "Device:C") (at 390 200) (unit 1) (property "Reference" "C211") (property "Value" "220nF"))
+
+  ; --- Подключения VL805 Upstream (от CM5) ---
+  (wire (pts (xy 50 100) (xy 100 100)))
+  (global_label "USB3_RX_P" (at 50 100))   ; от CM5
+  (wire (pts (xy 50 110) (xy 100 110)))
+  (global_label "USB3_RX_N" (at 50 110))
+  (wire (pts (xy 50 120) (xy 100 120)))
+  (global_label "USB3_TX_P" (at 50 120))
+  (wire (pts (xy 50 130) (xy 100 130)))
+  (global_label "USB3_TX_N" (at 50 130))
+  (wire (pts (xy 50 140) (xy 100 140)))
+  (global_label "USB2_DP" (at 50 140))
+  (wire (pts (xy 50 150) (xy 100 150)))
+  (global_label "USB2_DN" (at 50 150))
+
+  ; --- VL805 Downstream Port 1 -> USB-C2 (OTG) через load switch ---
+  (wire (pts (xy 100 180) (xy 200 180))) ; DP1_TX_P
+  (wire (pts (xy 100 190) (xy 200 190))) ; DP1_TX_N
+  (wire (pts (xy 100 200) (xy 200 200))) ; DP1_RX_P
+  (wire (pts (xy 100 210) (xy 200 210))) ; DP1_RX_N
+  (wire (pts (xy 100 220) (xy 200 220))) ; USB2_DP1
+  (wire (pts (xy 100 230) (xy 200 230))) ; USB2_DN1
+  (wire (pts (xy 100 240) (xy 150 240))) ; PWR_EN1 к U13 EN
+  (wire (pts (xy 150 80) (xy 150 70)))   ; U13 VIN = +5V
+  (global_label "VCC_5V0" (at 150 70))
+  (wire (pts (xy 150 80) (xy 200 80)))   ; U13 VOUT на VBUS J5
+  (wire (pts (xy 200 80) (xy 200 50)))   ; к J5 VBUS
+  (wire (pts (xy 150 240) (xy 150 80)))   ; EN load switch
+
+  ; --- VL805 Downstream Port 2 -> VL817 Upstream ---
+  (wire (pts (xy 100 250) (xy 350 100))) ; DP2_TX_P -> VL817 USB3_RX_P
+  (wire (pts (xy 100 260) (xy 350 110)))
+  (wire (pts (xy 100 270) (xy 350 120)))
+  (wire (pts (xy 100 280) (xy 350 130)))
+  (wire (pts (xy 100 290) (xy 350 140)))
+  (wire (pts (xy 100 300) (xy 350 150)))
+  (global_label "VL805_DP2_TO_VL817" (at 200 260))
+
+  ; --- VL805 Downstream Port 3 -> RTL2832U (встроенный SDR) ---
+  (wire (pts (xy 100 310) (xy 150 310))) ; DP3_TX_P
+  (wire (pts (xy 100 320) (xy 150 320))) ; DP3_TX_N
+  (wire (pts (xy 100 330) (xy 150 330))) ; DP3_RX_P
+  (wire (pts (xy 100 340) (xy 150 340))) ; DP3_RX_N
+  (wire (pts (xy 100 350) (xy 150 350))) ; USB2_DP3
+  (wire (pts (xy 100 360) (xy 150 360))) ; USB2_DN3
+  (global_label "RTL_SDR_USB" (at 150 310))
+
+  ; --- VL805 Downstream Port 4 -> USB-C3 (Node A) через load switch ---
+  (wire (pts (xy 100 370) (xy 450 180)))
+  (wire (pts (xy 100 380) (xy 450 190)))
+  (wire (pts (xy 100 390) (xy 450 200)))
+  (wire (pts (xy 100 400) (xy 450 210)))
+  (wire (pts (xy 100 410) (xy 450 220)))
+  (wire (pts (xy 100 420) (xy 450 230)))
+  (wire (pts (xy 100 430) (xy 500 240))) ; PWR_EN4 -> U15 EN
+  (wire (pts (xy 500 80) (xy 500 70)))   ; U15 VIN = +5V
+  (global_label "VCC_5V0" (at 500 70))
+  (wire (pts (xy 500 80) (xy 450 80)))   ; U15 VOUT на J6 VBUS
+  (wire (pts (xy 450 80) (xy 450 50)))
+
+  ; --- VL817 Downstream Port 1 -> M.2 LTE (через внутренний лист, здесь глобальные метки) ---
+  (wire (pts (xy 350 250) (xy 400 250)))
+  (global_label "USB3_TO_LTE_TX_P" (at 400 250))
+  (wire (pts (xy 350 260) (xy 400 260)))
+  (global_label "USB3_TO_LTE_TX_N" (at 400 260))
+  (wire (pts (xy 350 270) (xy 400 270)))
+  (global_label "USB3_TO_LTE_RX_P" (at 400 270))
+  (wire (pts (xy 350 280) (xy 400 280)))
+  (global_label "USB3_TO_LTE_RX_N" (at 400 280))
+  (wire (pts (xy 350 290) (xy 400 290)))
+  (global_label "USB2_TO_LTE_DP" (at 400 290))
+  (wire (pts (xy 350 300) (xy 400 300)))
+  (global_label "USB2_TO_LTE_DN" (at 400 300))
+
+  ; --- VL817 Downstream Port 2 (USB2 only) -> ESP32-S3 ---
+  (wire (pts (xy 350 310) (xy 400 310)))
+  (global_label "USB2_TO_ESP_DP" (at 400 310))
+  (wire (pts (xy 350 320) (xy 400 320)))
+  (global_label "USB2_TO_ESP_DN" (at 400 320))
+
+  ; --- VL817 Downstream Port 3 (USB2 only) -> ATmega32U4 ---
+  (wire (pts (xy 350 330) (xy 400 330)))
+  (global_label "USB2_TO_ATMEGA_DP" (at 400 330))
+  (wire (pts (xy 350 340) (xy 400 340)))
+  (global_label "USB2_TO_ATMEGA_DN" (at 400 340))
+
+  ; --- VL817 Downstream Port 4 -> USB-C4 (Node B) через load switch ---
+  (wire (pts (xy 350 350) (xy 600 180)))
+  (wire (pts (xy 350 360) (xy 600 190)))
+  (wire (pts (xy 350 370) (xy 600 200)))
+  (wire (pts (xy 350 380) (xy 600 210)))
+  (wire (pts (xy 350 390) (xy 600 220)))
+  (wire (pts (xy 350 400) (xy 600 230)))
+  (wire (pts (xy 350 410) (xy 650 240))) ; PWR_EN4 -> U16
+  (wire (pts (xy 650 80) (xy 650 70)))
+  (global_label "VCC_5V0" (at 650 70))
+  (wire (pts (xy 650 80) (xy 600 80)))
+  (wire (pts (xy 600 80) (xy 600 50)))
+
+  ; --- FE1.1s подключается к VL817 Port2 USB2 (общий с ESP32) через разветвление ---
+  (wire (pts (xy 350 310) (xy 350 420))) ; ответвление на FE1.1s
+  (wire (pts (xy 350 320) (xy 350 430)))
+  (wire (pts (xy 100 350) (xy 100 450))) ; вход FE1.1s
+  (wire (pts (xy 100 460) (xy 100 470)))
+  ; FE1.1s Downstream Port1 -> PN532 (UART-USB)
+  (global_label "USB_TO_PN532_DP" (at 50 500))
+  (wire (pts (xy 50 500) (xy 100 480)))
+  (global_label "USB_TO_PN532_DN" (at 50 510))
+  (wire (pts (xy 50 510) (xy 100 490)))
+  ; FE1.1s Port2 -> DEV Header
+  (global_label "USB_TO_DEV_DP" (at 50 520))
+  (wire (pts (xy 50 520) (xy 100 500)))
+  (global_label "USB_TO_DEV_DN" (at 50 530))
+  (wire (pts (xy 50 530) (xy 100 510)))
+  ; Port3/4 не используются
+
+  ; --- Питание хабов ---
+  (wire (pts (xy 80 80) (xy 100 80))) ; +3.3V на VL805
+  (global_label "VCC_3V3" (at 80 80))
+  (wire (pts (xy 80 90) (xy 100 90))) ; +1.1V на VL805
+  (global_label "VCC_1V1" (at 80 90))
+  (wire (pts (xy 330 80) (xy 350 80))) ; +3.3V на VL817
+  (global_label "VCC_3V3" (at 330 80))
+  (wire (pts (xy 330 90) (xy 350 90))) ; +1.1V на VL817
+  (global_label "VCC_1V1" (at 330 90))
+  (wire (pts (xy 80 85) (xy 100 85))) ; +3.3V на FE1.1s
+  (global_label "VCC_3V3" (at 80 85))
+
+  ; --- Земля ---
+  (power_symbol "GND" (at 50 550))
+  (power_symbol "GND" (at 400 550))
+  (power_symbol "GND" (at 200 550))
+)
