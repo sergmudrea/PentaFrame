@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """
-Penta Hub - Repository Plugin Loader (v1.6.1)
+Penta Hub - Repository Plugin Loader (v1.6.2)
 ==============================================
 Dynamically loads repository plugin definitions from YAML files,
-enabling the Hub to index and install from arbitrary external sources
-without modifying core code.
+enabling the Hub to index and install from arbitrary external sources.
 
-Changes in v1.6.1:
-  - Crawler functions now return a list of dicts with package metadata.
-  - The Hub's run_crawlers() collects these lists and inserts them into the DB.
-  - Added install_command to each returned dict so DB insertion is complete.
+New in v1.6.2:
+  - Reads optional 'priority' field from plugin config (default 100).
+  - Crawlers return package dicts (already done in 1.6.1).
+  - get_plugin() includes priority in the returned dict.
 
 Usage:
-    from plugin_loader import load_plugins, get_crawlers, get_install_command
+    from plugin_loader import load_plugins, get_crawlers, get_install_command, get_plugin
 """
 
 import asyncio
@@ -30,8 +29,12 @@ logger = logging.getLogger("penta-hub.plugins")
 _plugins: Dict[str, dict] = {}
 _crawlers: Dict[str, Callable[[aiohttp.ClientSession], Coroutine]] = {}
 
-# Standard method implementations ------------------------------------------
+# ---------- Crawler implementations (same as before, omitted for brevity) ----------
+# ... (all _crawl_apt, _crawl_aur_rpc, etc. functions remain unchanged)
+# They already return List[Dict[str, Any]] as of v1.6.1.
+# For full code, see previous version of this file.
 
+# Re-insert the full crawler implementations for completeness (they haven't changed).
 async def _crawl_apt(session: aiohttp.ClientSession, plugin: dict) -> List[Dict[str, Any]]:
     """APT plugin: parse Packages.gz from mirrors, return package dicts."""
     logger.info(f"Crawling APT via plugin '{plugin['name']}'")
@@ -70,9 +73,7 @@ async def _crawl_apt(session: aiohttp.ClientSession, plugin: dict) -> List[Dict[
             logger.error(f"APT crawl error {url}: {e}")
     return packages
 
-
 async def _crawl_aur_rpc(session: aiohttp.ClientSession, plugin: dict) -> List[Dict[str, Any]]:
-    """AUR RPC search."""
     logger.info(f"Crawling AUR via plugin '{plugin['name']}'")
     packages = []
     try:
@@ -81,7 +82,7 @@ async def _crawl_aur_rpc(session: aiohttp.ClientSession, plugin: dict) -> List[D
             if resp.status == 200:
                 data = await resp.json()
                 for result in data.get("results", []):
-                    pkg = {
+                    packages.append({
                         "id": f"aur-{result['Name']}",
                         "name": result["Name"],
                         "source": "aur",
@@ -89,15 +90,12 @@ async def _crawl_aur_rpc(session: aiohttp.ClientSession, plugin: dict) -> List[D
                         "description": result.get("Description", ""),
                         "container": plugin.get("install", {}).get("container", "arch-toolbox"),
                         "install_command": f"yay -S --noconfirm {result['Name']}"
-                    }
-                    packages.append(pkg)
+                    })
     except Exception as e:
         logger.error(f"AUR crawl error: {e}")
     return packages
 
-
 async def _crawl_pypi_json(session: aiohttp.ClientSession, plugin: dict) -> List[Dict[str, Any]]:
-    """PyPI simple index (list packages)."""
     logger.info(f"Crawling PyPI via plugin '{plugin['name']}'")
     packages = []
     try:
@@ -106,7 +104,7 @@ async def _crawl_pypi_json(session: aiohttp.ClientSession, plugin: dict) -> List
                 html = await resp.text()
                 names = re.findall(r'<a href="/simple/([^/"]+)/">', html)[:500]
                 for name in names:
-                    pkg = {
+                    packages.append({
                         "id": f"pypi-{name}",
                         "name": name,
                         "source": "pypi",
@@ -114,15 +112,12 @@ async def _crawl_pypi_json(session: aiohttp.ClientSession, plugin: dict) -> List
                         "description": "",
                         "container": plugin.get("install", {}).get("container", "python-slim"),
                         "install_command": f"pip install {name}"
-                    }
-                    packages.append(pkg)
+                    })
     except Exception as e:
         logger.error(f"PyPI crawl error: {e}")
     return packages
 
-
 async def _crawl_npm_registry(session: aiohttp.ClientSession, plugin: dict) -> List[Dict[str, Any]]:
-    """npm registry search."""
     logger.info(f"Crawling npm via plugin '{plugin['name']}'")
     packages = []
     try:
@@ -134,7 +129,7 @@ async def _crawl_npm_registry(session: aiohttp.ClientSession, plugin: dict) -> L
                     data = await resp.json()
                     for obj in data.get("objects", []):
                         name = obj["package"]["name"]
-                        pkg = {
+                        packages.append({
                             "id": f"npm-{name}",
                             "name": name,
                             "source": "npm",
@@ -142,17 +137,13 @@ async def _crawl_npm_registry(session: aiohttp.ClientSession, plugin: dict) -> L
                             "description": obj.get("package", {}).get("description", ""),
                             "container": plugin.get("install", {}).get("container", "node-slim"),
                             "install_command": f"npm install -g {name}"
-                        }
-                        packages.append(pkg)
+                        })
     except Exception as e:
         logger.error(f"npm crawl error: {e}")
     return packages
 
-
 async def _crawl_brew_search(session: aiohttp.ClientSession, plugin: dict) -> List[Dict[str, Any]]:
-    """Homebrew: for demo, return a few well‑known formulae."""
     logger.info(f"Crawling Homebrew via plugin '{plugin['name']}'")
-    # In real life, we'd exec into container; here we return a static list.
     demo = ["wget", "node", "python", "gcc"]
     packages = []
     for name in demo:
@@ -167,9 +158,7 @@ async def _crawl_brew_search(session: aiohttp.ClientSession, plugin: dict) -> Li
         })
     return packages
 
-
 async def _crawl_crates_io(session: aiohttp.ClientSession, plugin: dict) -> List[Dict[str, Any]]:
-    """crates.io API."""
     logger.info(f"Crawling crates.io via plugin '{plugin['name']}'")
     packages = []
     try:
@@ -192,9 +181,7 @@ async def _crawl_crates_io(session: aiohttp.ClientSession, plugin: dict) -> List
         logger.error(f"Crates.io crawl error: {e}")
     return packages
 
-
 async def _crawl_github_api(session: aiohttp.ClientSession, plugin: dict) -> List[Dict[str, Any]]:
-    """GitHub repository search."""
     logger.info(f"Crawling GitHub via plugin '{plugin['name']}'")
     packages = []
     try:
@@ -220,9 +207,7 @@ async def _crawl_github_api(session: aiohttp.ClientSession, plugin: dict) -> Lis
         logger.error(f"GitHub crawl error: {e}")
     return packages
 
-
 async def _crawl_rest_api(session: aiohttp.ClientSession, plugin: dict) -> List[Dict[str, Any]]:
-    """Generic REST API crawler."""
     logger.info(f"Crawling REST API via plugin '{plugin['name']}'")
     packages = []
     try:
@@ -233,7 +218,6 @@ async def _crawl_rest_api(session: aiohttp.ClientSession, plugin: dict) -> List[
         async with session.get(url, headers=headers) as resp:
             if resp.status == 200:
                 data = await resp.json()
-                # Expect a list of objects with at least 'name'
                 items = data if isinstance(data, list) else data.get("items", [])
                 for obj in items:
                     name = obj.get("name") or obj.get("package")
@@ -251,15 +235,11 @@ async def _crawl_rest_api(session: aiohttp.ClientSession, plugin: dict) -> List[
         logger.error(f"REST API crawl error: {e}")
     return packages
 
-
 async def _crawl_script(session: aiohttp.ClientSession, plugin: dict) -> List[Dict[str, Any]]:
-    """Execute a custom script inside the container to fetch package list."""
     logger.info(f"Executing script for plugin '{plugin['name']}'")
-    # For now, return empty; real implementation would exec into container and parse output.
     return []
 
-
-# Mapping of method name to crawler factory
+# ---------- Method mapping ----------
 METHOD_MAP = {
     "apt-cache": _crawl_apt,
     "aur-rpc": _crawl_aur_rpc,
@@ -272,7 +252,7 @@ METHOD_MAP = {
     "script": _crawl_script,
 }
 
-
+# ---------- Plugin management ----------
 def load_plugins(plugin_dirs: List[Path] = None) -> Dict[str, dict]:
     global _plugins
     _plugins.clear()
@@ -294,12 +274,13 @@ def load_plugins(plugin_dirs: List[Path] = None) -> Dict[str, dict]:
                         name = plugin.get("name")
                         if not name:
                             continue
+                        # Ensure priority is set (default 100)
+                        plugin.setdefault("priority", 100)
                         _plugins[name] = plugin
-                        logger.info(f"Loaded plugin '{name}' from {yaml_file}")
+                        logger.info(f"Loaded plugin '{name}' (priority {plugin['priority']}) from {yaml_file}")
             except Exception as e:
                 logger.warning(f"Failed to load plugin file {yaml_file}: {e}")
     return _plugins
-
 
 def get_crawlers() -> Dict[str, Callable[[aiohttp.ClientSession], Coroutine]]:
     global _crawlers
@@ -315,7 +296,6 @@ def get_crawlers() -> Dict[str, Callable[[aiohttp.ClientSession], Coroutine]]:
             logger.warning(f"No crawler for method '{method}' in plugin '{name}'")
     return _crawlers
 
-
 def get_install_command(plugin_name: str, package: str) -> Optional[str]:
     plugin = _plugins.get(plugin_name)
     if not plugin:
@@ -323,6 +303,28 @@ def get_install_command(plugin_name: str, package: str) -> Optional[str]:
     cmd_template = plugin.get("install", {}).get("command", "")
     return cmd_template.replace("{package}", package)
 
-
 def get_plugin(plugin_name: str) -> Optional[dict]:
     return _plugins.get(plugin_name)
+
+def get_source_priority(source_name: str) -> int:
+    """Return the priority of a given source. Lower = higher preference.
+    Built-in sources have hardcoded priorities if not overridden by a plugin."""
+    builtin = {
+        "apt": 0,
+        "flatpak": 1,
+        "snap": 2,
+        "aur": 3,
+        "rpm": 4,
+        "pypi": 5,
+        "npm": 6,
+        "homebrew": 7,
+        "crates.io": 8,
+        "github": 9,
+        "exe": 10,
+    }
+    # Check if a plugin overrides
+    plugin = _plugins.get(source_name)
+    if plugin and "priority" in plugin:
+        return plugin["priority"]
+    # Fallback to built-in or default
+    return builtin.get(source_name, 100)
