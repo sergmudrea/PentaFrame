@@ -1,0 +1,29 @@
+[Unit]
+Description=pentad - Penta Module Daemon
+After=network.target mosquitto.service
+Requires=mosquitto.service
+
+[Service]
+Type=simple
+User=pentad
+Group=pentad
+ExecStart=/usr/bin/python3 /opt/penta/src/pentad/pentad.py
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/log/penta /run/penta
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_NET_ADMIN CAP_SYS_RAWIO
+AmbientCapabilities=CAP_SYS_ADMIN CAP_NET_ADMIN CAP_SYS_RAWIO
+SystemCallFilter=@system-service ioctl openat read write close nanosleep socket connect sendto
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target
