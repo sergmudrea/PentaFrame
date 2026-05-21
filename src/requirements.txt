@@ -1,4 +1,4 @@
-# Penta OS Core Dependencies
+# Penta OS Core Dependencies (v1.6.2)
 
 # Web frameworks and APIs
 fastapi==0.115.0
@@ -17,8 +17,6 @@ click==8.1.7
 # Container management (Docker SDK)
 docker==7.1.0
 
-# Distrobox wrapper (uses subprocess, no special lib)
-
 # Package metadata parsing
 python-debian==0.1.49
 rpmfile==1.1.0
@@ -33,12 +31,22 @@ sqlalchemy==2.0.31
 # Logging
 loguru==0.7.2
 
-# Testing
+# ---------- Hardware / System ----------
+# I²C bus access (pentad)
+smbus2==0.4.3
+
+# System resource monitoring (pentad)
+psutil==5.9.8
+
+# Seccomp BPF filtering (security)
+python-seccomp==1.0.1
+
+# ---------- Testing ----------
 pytest==8.3.0
 pytest-asyncio==0.23.0
 pytest-cov==5.0.0
 
-# Code quality
+# ---------- Code quality ----------
 pylint==3.2.0
 black==24.8.0
 shellcheck-py==0.10.0
