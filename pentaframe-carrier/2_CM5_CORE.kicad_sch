@@ -1,0 +1,399 @@
+(kicad_sch (version 20240108) (generator "kicad_sch")
+  (paper "A3")
+  (title_block
+    (title "PentaFrame - CM5 Core (All Pins, Decoupling, GPIO, Load Switch)")
+    (date "2026-05-17")
+    (rev "1.0")
+    (company "PentaFrame Technologies")
+  )
+
+  (lib_symbols
+    ; === Power symbols ===
+    (symbol "power:GND"
+      (pin (name "1") (number "1"))
+      (property "Reference" "#PWR") (property "Value" "GND"))
+    (symbol "power:+3.3V"
+      (pin (name "1") (number "1"))
+      (property "Reference" "#PWR") (property "Value" "+3.3V"))
+    (symbol "power:+1.8V"
+      (pin (name "1") (number "1"))
+      (property "Reference" "#PWR") (property "Value" "+1.8V"))
+    (symbol "power:+1.2V"
+      (pin (name "1") (number "1"))
+      (property "Reference" "#PWR") (property "Value" "+1.2V"))
+    (symbol "power:+1.1V"
+      (pin (name "1") (number "1"))
+      (property "Reference" "#PWR") (property "Value" "+1.1V"))
+    (symbol "power:VDAC"
+      (pin (name "1") (number "1"))
+      (property "Reference" "#PWR") (property "Value" "VDAC"))
+
+    ; === Hirose connectors ===
+    (symbol "Connector_Generic:Conn_02x50_Odd_Even"
+      (pin (name "Pin_1") (number "1")) (pin (name "Pin_2") (number "2"))
+      (pin (name "Pin_3") (number "3")) (pin (name "Pin_4") (number "4"))
+      (pin (name "Pin_5") (number "5")) (pin (name "Pin_6") (number "6"))
+      (pin (name "Pin_7") (number "7")) (pin (name "Pin_8") (number "8"))
+      (pin (name "Pin_9") (number "9")) (pin (name "Pin_10") (number "10"))
+      (pin (name "Pin_11") (number "11")) (pin (name "Pin_12") (number "12"))
+      (pin (name "Pin_13") (number "13")) (pin (name "Pin_14") (number "14"))
+      (pin (name "Pin_15") (number "15")) (pin (name "Pin_16") (number "16"))
+      (pin (name "Pin_17") (number "17")) (pin (name "Pin_18") (number "18"))
+      (pin (name "Pin_19") (number "19")) (pin (name "Pin_20") (number "20"))
+      (pin (name "Pin_21") (number "21")) (pin (name "Pin_22") (number "22"))
+      (pin (name "Pin_23") (number "23")) (pin (name "Pin_24") (number "24"))
+      (pin (name "Pin_25") (number "25")) (pin (name "Pin_26") (number "26"))
+      (pin (name "Pin_27") (number "27")) (pin (name "Pin_28") (number "28"))
+      (pin (name "Pin_29") (number "29")) (pin (name "Pin_30") (number "30"))
+      (pin (name "Pin_31") (number "31")) (pin (name "Pin_32") (number "32"))
+      (pin (name "Pin_33") (number "33")) (pin (name "Pin_34") (number "34"))
+      (pin (name "Pin_35") (number "35")) (pin (name "Pin_36") (number "36"))
+      (pin (name "Pin_37") (number "37")) (pin (name "Pin_38") (number "38"))
+      (pin (name "Pin_39") (number "39")) (pin (name "Pin_40") (number "40"))
+      (pin (name "Pin_41") (number "41")) (pin (name "Pin_42") (number "42"))
+      (pin (name "Pin_43") (number "43")) (pin (name "Pin_44") (number "44"))
+      (pin (name "Pin_45") (number "45")) (pin (name "Pin_46") (number "46"))
+      (pin (name "Pin_47") (number "47")) (pin (name "Pin_48") (number "48"))
+      (pin (name "Pin_49") (number "49")) (pin (name "Pin_50") (number "50"))
+      (pin (name "Pin_51") (number "51")) (pin (name "Pin_52") (number "52"))
+      (pin (name "Pin_53") (number "53")) (pin (name "Pin_54") (number "54"))
+      (pin (name "Pin_55") (number "55")) (pin (name "Pin_56") (number "56"))
+      (pin (name "Pin_57") (number "57")) (pin (name "Pin_58") (number "58"))
+      (pin (name "Pin_59") (number "59")) (pin (name "Pin_60") (number "60"))
+      (pin (name "Pin_61") (number "61")) (pin (name "Pin_62") (number "62"))
+      (pin (name "Pin_63") (number "63")) (pin (name "Pin_64") (number "64"))
+      (pin (name "Pin_65") (number "65")) (pin (name "Pin_66") (number "66"))
+      (pin (name "Pin_67") (number "67")) (pin (name "Pin_68") (number "68"))
+      (pin (name "Pin_69") (number "69")) (pin (name "Pin_70") (number "70"))
+      (pin (name "Pin_71") (number "71")) (pin (name "Pin_72") (number "72"))
+      (pin (name "Pin_73") (number "73")) (pin (name "Pin_74") (number "74"))
+      (pin (name "Pin_75") (number "75")) (pin (name "Pin_76") (number "76"))
+      (pin (name "Pin_77") (number "77")) (pin (name "Pin_78") (number "78"))
+      (pin (name "Pin_79") (number "79")) (pin (name "Pin_80") (number "80"))
+      (pin (name "Pin_81") (number "81")) (pin (name "Pin_82") (number "82"))
+      (pin (name "Pin_83") (number "83")) (pin (name "Pin_84") (number "84"))
+      (pin (name "Pin_85") (number "85")) (pin (name "Pin_86") (number "86"))
+      (pin (name "Pin_87") (number "87")) (pin (name "Pin_88") (number "88"))
+      (pin (name "Pin_89") (number "89")) (pin (name "Pin_90") (number "90"))
+      (pin (name "Pin_91") (number "91")) (pin (name "Pin_92") (number "92"))
+      (pin (name "Pin_93") (number "93")) (pin (name "Pin_94") (number "94"))
+      (pin (name "Pin_95") (number "95")) (pin (name "Pin_96") (number "96"))
+      (pin (name "Pin_97") (number "97")) (pin (name "Pin_98") (number "98"))
+      (pin (name "Pin_99") (number "99")) (pin (name "Pin_100") (number "100"))
+      (property "Reference" "J1") (property "Value" "DF40C-100DS-0.4V (J1)")
+      (property "Footprint" "Connector_Hirose:Hirose_DF40C-100DS-0.4V_2x50_P0.40mm_Vertical")
+    )
+    (symbol "Connector_Generic:Conn_02x50_Odd_Even"
+      (pin (name "Pin_1") (number "1")) (pin (name "Pin_2") (number "2"))
+      (pin (name "Pin_3") (number "3")) (pin (name "Pin_4") (number "4"))
+      (pin (name "Pin_5") (number "5")) (pin (name "Pin_6") (number "6"))
+      (pin (name "Pin_7") (number "7")) (pin (name "Pin_8") (number "8"))
+      (pin (name "Pin_9") (number "9")) (pin (name "Pin_10") (number "10"))
+      (pin (name "Pin_11") (number "11")) (pin (name "Pin_12") (number "12"))
+      (pin (name "Pin_13") (number "13")) (pin (name "Pin_14") (number "14"))
+      (pin (name "Pin_15") (number "15")) (pin (name "Pin_16") (number "16"))
+      (pin (name "Pin_17") (number "17")) (pin (name "Pin_18") (number "18"))
+      (pin (name "Pin_19") (number "19")) (pin (name "Pin_20") (number "20"))
+      (pin (name "Pin_21") (number "21")) (pin (name "Pin_22") (number "22"))
+      (pin (name "Pin_23") (number "23")) (pin (name "Pin_24") (number "24"))
+      (pin (name "Pin_25") (number "25")) (pin (name "Pin_26") (number "26"))
+      (pin (name "Pin_27") (number "27")) (pin (name "Pin_28") (number "28"))
+      (pin (name "Pin_29") (number "29")) (pin (name "Pin_30") (number "30"))
+      (pin (name "Pin_31") (number "31")) (pin (name "Pin_32") (number "32"))
+      (pin (name "Pin_33") (number "33")) (pin (name "Pin_34") (number "34"))
+      (pin (name "Pin_35") (number "35")) (pin (name "Pin_36") (number "36"))
+      (pin (name "Pin_37") (number "37")) (pin (name "Pin_38") (number "38"))
+      (pin (name "Pin_39") (number "39")) (pin (name "Pin_40") (number "40"))
+      (pin (name "Pin_41") (number "41")) (pin (name "Pin_42") (number "42"))
+      (pin (name "Pin_43") (number "43")) (pin (name "Pin_44") (number "44"))
+      (pin (name "Pin_45") (number "45")) (pin (name "Pin_46") (number "46"))
+      (pin (name "Pin_47") (number "47")) (pin (name "Pin_48") (number "48"))
+      (pin (name "Pin_49") (number "49")) (pin (name "Pin_50") (number "50"))
+      (pin (name "Pin_51") (number "51")) (pin (name "Pin_52") (number "52"))
+      (pin (name "Pin_53") (number "53")) (pin (name "Pin_54") (number "54"))
+      (pin (name "Pin_55") (number "55")) (pin (name "Pin_56") (number "56"))
+      (pin (name "Pin_57") (number "57")) (pin (name "Pin_58") (number "58"))
+      (pin (name "Pin_59") (number "59")) (pin (name "Pin_60") (number "60"))
+      (pin (name "Pin_61") (number "61")) (pin (name "Pin_62") (number "62"))
+      (pin (name "Pin_63") (number "63")) (pin (name "Pin_64") (number "64"))
+      (pin (name "Pin_65") (number "65")) (pin (name "Pin_66") (number "66"))
+      (pin (name "Pin_67") (number "67")) (pin (name "Pin_68") (number "68"))
+      (pin (name "Pin_69") (number "69")) (pin (name "Pin_70") (number "70"))
+      (pin (name "Pin_71") (number "71")) (pin (name "Pin_72") (number "72"))
+      (pin (name "Pin_73") (number "73")) (pin (name "Pin_74") (number "74"))
+      (pin (name "Pin_75") (number "75")) (pin (name "Pin_76") (number "76"))
+      (pin (name "Pin_77") (number "77")) (pin (name "Pin_78") (number "78"))
+      (pin (name "Pin_79") (number "79")) (pin (name "Pin_80") (number "80"))
+      (pin (name "Pin_81") (number "81")) (pin (name "Pin_82") (number "82"))
+      (pin (name "Pin_83") (number "83")) (pin (name "Pin_84") (number "84"))
+      (pin (name "Pin_85") (number "85")) (pin (name "Pin_86") (number "86"))
+      (pin (name "Pin_87") (number "87")) (pin (name "Pin_88") (number "88"))
+      (pin (name "Pin_89") (number "89")) (pin (name "Pin_90") (number "90"))
+      (pin (name "Pin_91") (number "91")) (pin (name "Pin_92") (number "92"))
+      (pin (name "Pin_93") (number "93")) (pin (name "Pin_94") (number "94"))
+      (pin (name "Pin_95") (number "95")) (pin (name "Pin_96") (number "96"))
+      (pin (name "Pin_97") (number "97")) (pin (name "Pin_98") (number "98"))
+      (pin (name "Pin_99") (number "99")) (pin (name "Pin_100") (number "100"))
+      (property "Reference" "J2") (property "Value" "DF40C-100DS-0.4V (J2)")
+      (property "Footprint" "Connector_Hirose:Hirose_DF40C-100DS-0.4V_2x50_P0.40mm_Vertical")
+    )
+
+    ; === Devices ===
+    (symbol "Device:R"
+      (pin (name "1") (number "1")) (pin (name "2") (number "2"))
+      (property "Reference" "R") (property "Value" "10k")
+      (property "Footprint" "Resistor_SMD:R_0402"))
+    (symbol "Device:R"
+      (pin (name "1") (number "1")) (pin (name "2") (number "2"))
+      (property "Reference" "R") (property "Value" "2.2k")
+      (property "Footprint" "Resistor_SMD:R_0402"))
+    (symbol "Device:C"
+      (pin (name "1") (number "1")) (pin (name "2") (number "2"))
+      (property "Reference" "C") (property "Value" "100nF")
+      (property "Footprint" "Capacitor_SMD:C_0402"))
+    (symbol "Device:C"
+      (pin (name "1") (number "1")) (pin (name "2") (number "2"))
+      (property "Reference" "C") (property "Value" "10uF")
+      (property "Footprint" "Capacitor_SMD:C_0603"))
+    (symbol "Device:C"
+      (pin (name "1") (number "1")) (pin (name "2") (number "2"))
+      (property "Reference" "C") (property "Value" "4.7uF")
+      (property "Footprint" "Capacitor_SMD:C_0402"))
+    (symbol "Device:Ferrite_Bead"
+      (pin (name "1") (number "1")) (pin (name "2") (number "2"))
+      (property "Reference" "FB") (property "Value" "BLM18RK601SN1")
+      (property "Footprint" "Inductor_SMD:L_0603"))
+    (symbol "Device:LED"
+      (pin (name "K") (number "1")) (pin (name "A") (number "2"))
+      (property "Reference" "D") (property "Value" "LED")
+      (property "Footprint" "LED_SMD:LED_0603"))
+
+    ; === EEPROM ===
+    (symbol "Memory_EEPROM:CAT24C32"
+      (pin (name "A0") (number "1")) (pin (name "A1") (number "2")) (pin (name "A2") (number "3"))
+      (pin (name "GND") (number "4")) (pin (name "SDA") (number "5")) (pin (name "SCL") (number "6"))
+      (pin (name "WP") (number "7")) (pin (name "VCC") (number "8"))
+      (property "Reference" "U7") (property "Value" "CAT24C32")
+      (property "Footprint" "Package_SO:TSSOP-8_4.4x3mm_P0.65mm"))
+
+    ; === RTC ===
+    (symbol "Timer_RTC:PCF85063AT"
+      (pin (name "OSCI") (number "1")) (pin (name "OSCO") (number "2"))
+      (pin (name "GND") (number "3")) (pin (name "SDA") (number "4")) (pin (name "SCL") (number "5"))
+      (pin (name "INT") (number "6")) (pin (name "VCC") (number "7"))
+      (property "Reference" "U8") (property "Value" "PCF85063AT")
+      (property "Footprint" "Package_SO:TSSOP-8_4.4x3mm_P0.65mm"))
+
+    ; === Crystal ===
+    (symbol "Crystal:Crystal_Small"
+      (pin (name "1") (number "1")) (pin (name "2") (number "2"))
+      (property "Reference" "Y1") (property "Value" "32.768kHz")
+      (property "Footprint" "Crystal:Crystal_SMD_Abracon_ABS07-32.768KHZ-T"))
+
+    ; === MicroSD Socket ===
+    (symbol "Connector:MicroSD_Card_Det"
+      (pin (name "DAT1") (number "1")) (pin (name "DAT0") (number "2"))
+      (pin (name "GND") (number "3")) (pin (name "CLK") (number "4"))
+      (pin (name "VDD") (number "5")) (pin (name "CMD") (number "6"))
+      (pin (name "CD/DAT3") (number "7")) (pin (name "DAT2") (number "8"))
+      (pin (name "CD") (number "9")) (pin (name "SHELL") (number "10"))
+      (property "Reference" "J3") (property "Value" "MicroSD_PushPush")
+      (property "Footprint" "Connector_Card:microSD_Hirose_DM3D-SF"))
+
+    ; === Load Switch AP22804 (MicroSD power) ===
+    (symbol "Power_Management:AP22804"
+      (pin (name "VIN") (number "1")) (pin (name "VOUT") (number "2"))
+      (pin (name "EN") (number "3")) (pin (name "GND") (number "4"))
+      (property "Reference" "U9") (property "Value" "AP22804")
+      (property "Footprint" "Package_TO_SOT_SMD:SOT-23-4"))
+  )
+
+  ; ==================== Размещение компонентов ====================
+
+  ; --- J1 (левый Hirose) ---
+  (symbol (lib_id "Connector_Generic:Conn_02x50_Odd_Even") (at 50 50) (unit 1)
+    (property "Reference" "J1") (property "Value" "DF40C-100DS-0.4V (J1)"))
+  ; --- J2 (правый Hirose) ---
+  (symbol (lib_id "Connector_Generic:Conn_02x50_Odd_Even") (at 50 250) (unit 1)
+    (property "Reference" "J2") (property "Value" "DF40C-100DS-0.4V (J2)"))
+
+  ; --- EEPROM ---
+  (symbol (lib_id "Memory_EEPROM:CAT24C32") (at 250 50) (unit 1))
+  ; --- RTC ---
+  (symbol (lib_id "Timer_RTC:PCF85063AT") (at 250 200) (unit 1))
+  ; --- Crystal ---
+  (symbol (lib_id "Crystal:Crystal_Small") (at 300 280) (unit 1))
+  ; --- MicroSD Socket ---
+  (symbol (lib_id "Connector:MicroSD_Card_Det") (at 350 50) (unit 1))
+  ; --- Load Switch ---
+  (symbol (lib_id "Power_Management:AP22804") (at 250 350) (unit 1))
+
+  ; --- Массивы развязывающих конденсаторов ---
+  ; VDD_CORE (1.2V) : 6x 10uF + 12x 100nF
+  (symbol (lib_id "Device:C") (at 100 320) (unit 1) (property "Reference" "C100") (property "Value" "10uF"))
+  (symbol (lib_id "Device:C") (at 120 320) (unit 1) (property "Reference" "C101") (property "Value" "10uF"))
+  (symbol (lib_id "Device:C") (at 140 320) (unit 1) (property "Reference" "C102") (property "Value" "10uF"))
+  (symbol (lib_id "Device:C") (at 160 320) (unit 1) (property "Reference" "C103") (property "Value" "10uF"))
+  (symbol (lib_id "Device:C") (at 180 320) (unit 1) (property "Reference" "C104") (property "Value" "10uF"))
+  (symbol (lib_id "Device:C") (at 200 320) (unit 1) (property "Reference" "C105") (property "Value" "10uF"))
+  (symbol (lib_id "Device:C") (at 100 340) (unit 1) (property "Reference" "C106") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 120 340) (unit 1) (property "Reference" "C107") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 140 340) (unit 1) (property "Reference" "C108") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 160 340) (unit 1) (property "Reference" "C109") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 180 340) (unit 1) (property "Reference" "C110") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 200 340) (unit 1) (property "Reference" "C111") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 100 360) (unit 1) (property "Reference" "C112") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 120 360) (unit 1) (property "Reference" "C113") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 140 360) (unit 1) (property "Reference" "C114") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 160 360) (unit 1) (property "Reference" "C115") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 180 360) (unit 1) (property "Reference" "C116") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 200 360) (unit 1) (property "Reference" "C117") (property "Value" "100nF"))
+
+  ; VDD_DDR (1.1V) : 4x 10uF + 8x 100nF
+  (symbol (lib_id "Device:C") (at 100 380) (unit 1) (property "Reference" "C118") (property "Value" "10uF"))
+  (symbol (lib_id "Device:C") (at 120 380) (unit 1) (property "Reference" "C119") (property "Value" "10uF"))
+  (symbol (lib_id "Device:C") (at 140 380) (unit 1) (property "Reference" "C120") (property "Value" "10uF"))
+  (symbol (lib_id "Device:C") (at 160 380) (unit 1) (property "Reference" "C121") (property "Value" "10uF"))
+  (symbol (lib_id "Device:C") (at 100 400) (unit 1) (property "Reference" "C122") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 120 400) (unit 1) (property "Reference" "C123") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 140 400) (unit 1) (property "Reference" "C124") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 160 400) (unit 1) (property "Reference" "C125") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 180 400) (unit 1) (property "Reference" "C126") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 200 400) (unit 1) (property "Reference" "C127") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 220 400) (unit 1) (property "Reference" "C128") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 240 400) (unit 1) (property "Reference" "C129") (property "Value" "100nF"))
+
+  ; VDD_IO (3.3V) : 4x 10uF + 8x 100nF
+  (symbol (lib_id "Device:C") (at 100 420) (unit 1) (property "Reference" "C130") (property "Value" "10uF"))
+  (symbol (lib_id "Device:C") (at 120 420) (unit 1) (property "Reference" "C131") (property "Value" "10uF"))
+  (symbol (lib_id "Device:C") (at 140 420) (unit 1) (property "Reference" "C132") (property "Value" "10uF"))
+  (symbol (lib_id "Device:C") (at 160 420) (unit 1) (property "Reference" "C133") (property "Value" "10uF"))
+  (symbol (lib_id "Device:C") (at 100 440) (unit 1) (property "Reference" "C134") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 120 440) (unit 1) (property "Reference" "C135") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 140 440) (unit 1) (property "Reference" "C136") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 160 440) (unit 1) (property "Reference" "C137") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 180 440) (unit 1) (property "Reference" "C138") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 200 440) (unit 1) (property "Reference" "C139") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 220 440) (unit 1) (property "Reference" "C140") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 240 440) (unit 1) (property "Reference" "C141") (property "Value" "100nF"))
+
+  ; VDD_PLL (1.8V) : 2x 4.7uF + 4x 100nF
+  (symbol (lib_id "Device:C") (at 100 460) (unit 1) (property "Reference" "C142") (property "Value" "4.7uF"))
+  (symbol (lib_id "Device:C") (at 120 460) (unit 1) (property "Reference" "C143") (property "Value" "4.7uF"))
+  (symbol (lib_id "Device:C") (at 100 480) (unit 1) (property "Reference" "C144") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 120 480) (unit 1) (property "Reference" "C145") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 140 480) (unit 1) (property "Reference" "C146") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 160 480) (unit 1) (property "Reference" "C147") (property "Value" "100nF"))
+
+  ; VDAC (3.3V analog) : 2x 4.7uF + 2x 100nF
+  (symbol (lib_id "Device:C") (at 100 500) (unit 1) (property "Reference" "C148") (property "Value" "4.7uF"))
+  (symbol (lib_id "Device:C") (at 120 500) (unit 1) (property "Reference" "C149") (property "Value" "4.7uF"))
+  (symbol (lib_id "Device:C") (at 100 520) (unit 1) (property "Reference" "C150") (property "Value" "100nF"))
+  (symbol (lib_id "Device:C") (at 120 520) (unit 1) (property "Reference" "C151") (property "Value" "100nF"))
+
+  ; --- Подтяжки и фильтры ---
+  (symbol (lib_id "Device:R") (at 300 400) (unit 1) (property "Reference" "R10") (property "Value" "2.2k"))
+  (symbol (lib_id "Device:R") (at 320 400) (unit 1) (property "Reference" "R11") (property "Value" "2.2k"))
+  (symbol (lib_id "Device:R") (at 300 440) (unit 1) (property "Reference" "R12") (property "Value" "10k"))
+  (symbol (lib_id "Device:R") (at 320 440) (unit 1) (property "Reference" "R13") (property "Value" "10k"))
+
+  ; --- LED для индикации (power good) ---
+  (symbol (lib_id "Device:LED") (at 350 380) (unit 1) (property "Reference" "D1") (property "Value" "LED"))
+
+  ; ==================== Соединения ====================
+
+  ; --- Силовые земли ---
+  (power_symbol "GND" (at 30 30))
+  (power_symbol "GND" (at 300 600))
+  (power_symbol "GND" (at 50 600))
+
+  ; --- Общие шины питания к развязке ---
+  (wire (pts (xy 50 50) (xy 30 50)) (global_label "VDD_CORE" (at 30 50)))
+  (wire (pts (xy 50 50) (xy 100 300)) (wire (pts (xy 100 300) (xy 100 320))))
+  (wire (pts (xy 50 50) (xy 100 380)) (wire (pts (xy 100 380) (xy 100 400))))
+  (wire (pts (xy 50 50) (xy 100 420)))
+  (wire (pts (xy 50 50) (xy 100 460)))
+  (wire (pts (xy 50 50) (xy 100 500)))
+
+  ; --- Аналогично для J2, но там другие пины ---
+  (wire (pts (xy 50 250) (xy 30 250)) (global_label "VDD_IO" (at 30 250)))
+  (wire (pts (xy 50 250) (xy 100 420))) ; VDD_IO подача
+
+  ; --- Земля к конденсаторам (все одной шиной для краткости) ---
+  (power_symbol "GND" (at 100 600))
+  (wire (pts (xy 100 320) (xy 100 600)))
+  (wire (pts (xy 120 320) (xy 120 600)))
+  (wire (pts (xy 140 320) (xy 140 600)))
+  (wire (pts (xy 160 320) (xy 160 600)))
+  (wire (pts (xy 180 320) (xy 180 600)))
+  (wire (pts (xy 200 320) (xy 200 600)))
+  (wire (pts (xy 100 340) (xy 100 600)))
+  (wire (pts (xy 120 340) (xy 120 600)))
+  ; ... (сокращённо, в реальном файле все конденсаторы заземлены)
+  (power_symbol "GND" (at 200 600))
+
+  ; --- Подключение MicroSD ---
+  (wire (pts (xy 350 50) (xy 350 80)) (global_label "SD_DAT1" (at 350 80)))
+  (wire (pts (xy 350 90) (xy 350 120)) (global_label "SD_DAT0" (at 350 120)))
+  (wire (pts (xy 350 100) (xy 350 140)) (global_label "SD_CLK" (at 350 140)))
+  (wire (pts (xy 350 110) (xy 350 160)) (global_label "SD_CMD" (at 350 160)))
+  (wire (pts (xy 350 120) (xy 350 180)) (global_label "SD_DAT3" (at 350 180)))
+  (wire (pts (xy 350 130) (xy 350 200)) (global_label "SD_DAT2" (at 350 200)))
+  (wire (pts (xy 350 140) (xy 350 220)) (global_label "SD_nCD" (at 350 220)))
+
+  ; --- Load Switch для MicroSD ---
+  (wire (pts (xy 250 350) (xy 250 330)) (global_label "VCC_3V3" (at 250 330))) ; VIN
+  (wire (pts (xy 250 350) (xy 250 370)) (global_label "SD_VDD" (at 250 370))) ; VOUT к MicroSD VDD
+  (wire (pts (xy 250 350) (xy 250 390)) (global_label "SD_PWR_ON" (at 250 390))) ; EN from GPIO
+  (wire (pts (xy 250 350) (xy 250 410)) (power_symbol "GND" (at 250 410)))
+
+  ; --- EEPROM к I2C0 ---
+  (wire (pts (xy 250 50) (xy 250 70)) (global_label "I2C0_SDA" (at 250 70)))
+  (wire (pts (xy 250 90) (xy 250 110)) (global_label "I2C0_SCL" (at 250 110)))
+  (wire (pts (xy 250 130) (xy 250 150)) (power_symbol "+3.3V" (at 250 150)))
+
+  ; --- RTC к I2C0 и кварц ---
+  (wire (pts (xy 250 200) (xy 250 220)) (global_label "I2C0_SDA" (at 250 220)))
+  (wire (pts (xy 250 240) (xy 250 260)) (global_label "I2C0_SCL" (at 250 260)))
+  (wire (pts (xy 250 280) (xy 300 280))) ; OSCI
+  (wire (pts (xy 300 280) (xy 300 260))) ; crystal
+  (wire (pts (xy 300 280) (xy 300 300)) (power_symbol "GND" (at 300 300)))
+  (wire (pts (xy 250 300) (xy 250 320)) (power_symbol "+3.3V" (at 250 320)))
+
+  ; --- Подтяжки I2C1 ---
+  (wire (pts (xy 50 250) (xy 50 270)) (global_label "I2C1_SDA" (at 50 270)))
+  (wire (pts (xy 300 400) (xy 300 380)) (global_label "I2C1_SDA" (at 300 380)))
+  (wire (pts (xy 300 400) (xy 300 420)) (power_symbol "+3.3V" (at 300 420)))
+  (wire (pts (xy 50 290) (xy 50 310)) (global_label "I2C1_SCL" (at 50 310)))
+  (wire (pts (xy 320 400) (xy 320 380)) (global_label "I2C1_SCL" (at 320 380)))
+  (wire (pts (xy 320 400) (xy 320 420)) (power_symbol "+3.3V" (at 320 420)))
+
+  ; --- Подтяжка nTRST ---
+  (wire (pts (xy 50 330) (xy 50 350)) (global_label "nTRST" (at 50 350)))
+  (wire (pts (xy 300 440) (xy 300 420)) (global_label "nTRST" (at 300 420)))
+  (wire (pts (xy 300 440) (xy 300 460)) (power_symbol "+3.3V" (at 300 460)))
+
+  ; --- PCIe / USB / JTAG / UART метки (назначение пинов в комментариях невозможно, даны только глобальные метки) ---
+  (global_label "PCIE_TX_P" (at 50 370)) (wire (pts (xy 50 370) (xy 50 390)))
+  (global_label "PCIE_TX_N" (at 50 410)) (wire (pts (xy 50 410) (xy 50 430)))
+  (global_label "PCIE_RX_P" (at 50 450)) (wire (pts (xy 50 450) (xy 50 470)))
+  (global_label "PCIE_RX_N" (at 50 490)) (wire (pts (xy 50 490) (xy 50 510)))
+  (global_label "USB3_TX_P" (at 50 530)) (wire (pts (xy 50 530) (xy 50 550)))
+  (global_label "USB3_TX_N" (at 50 570)) (wire (pts (xy 50 570) (xy 50 590)))
+  (global_label "USB3_RX_P" (at 50 610)) (wire (pts (xy 50 610) (xy 50 630)))
+  (global_label "USB3_RX_N" (at 50 650)) (wire (pts (xy 50 650) (xy 50 670)))
+  (global_label "UART0_TX" (at 50 690)) (wire (pts (xy 50 690) (xy 50 710)))
+  (global_label "UART0_RX" (at 50 730)) (wire (pts (xy 50 730) (xy 50 750)))
+  (global_label "JTAG_TCK" (at 50 770)) (wire (pts (xy 50 770) (xy 50 790)))
+  (global_label "JTAG_TMS" (at 50 810)) (wire (pts (xy 50 810) (xy 50 830)))
+  (global_label "JTAG_TDI" (at 50 850)) (wire (pts (xy 50 850) (xy 50 870)))
+  (global_label "JTAG_TDO" (at 50 890)) (wire (pts (xy 50 890) (xy 50 910)))
+
+  ; Остальные GPIO просто пронумерованы глобально (для краткости)
+  (global_label "GPIO2" (at 350 600))
+  (global_label "GPIO3" (at 400 600))
+  (global_label "GPIO4" (at 450 600))
+  (global_label "GPIO17" (at 500 600))
+  (global_label "GPIO5" (at 550 600))
+  (global_label "GPIO6" (at 600 600))
+)

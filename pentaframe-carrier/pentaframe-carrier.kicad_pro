@@ -1,0 +1,88 @@
+{
+  "board": {
+    "design_settings": {
+      "rules": {
+        "min_track_width": 0.15,
+        "min_via_diameter": 0.6,
+        "min_via_drill": 0.3,
+        "min_through_hole_diameter": 0.8,
+        "min_hole_to_hole": 0.25,
+        "min_silkscreen_text_height": 0.8,
+        "min_silkscreen_text_thickness": 0.1,
+        "allow_blind_buried_vias": false,
+        "allow_micro_vias": false
+      },
+      "track_widths": [0.15, 0.2, 0.25, 0.35, 0.5, 1.0, 2.0],
+      "via_dimensions": [
+        {"diameter": 0.6, "drill": 0.3},
+        {"diameter": 0.8, "drill": 0.4},
+        {"diameter": 1.0, "drill": 0.5}
+      ],
+      "diff_pair_dimensions": [
+        {"width": 0.25, "gap": 0.2, "via_gap": 0.2}
+      ],
+      "drc_exclusions": []
+    },
+    "layer_presets": {
+      "enabled": true,
+      "layers": ["F.Cu", "In1.Cu", "In2.Cu", "In3.Cu", "In4.Cu", "In5.Cu", "In6.Cu", "B.Cu"],
+      "copper_layers": 8
+    },
+    "stackup": {
+      "layers": [
+        {"name": "F.Cu",         "type": "signal",    "thickness": 0.035},
+        {"name": "F.Paste",      "type": "solder_paste"},
+        {"name": "F.Silkscreen", "type": "silkscreen"},
+        {"name": "F.Mask",       "type": "solder_mask"},
+        {"name": "Dielectric 1", "type": "core",      "thickness": 0.1, "material": "FR408HR", "epsilon_r": 3.68, "loss_tangent": 0.009},
+        {"name": "In1.Cu",       "type": "power",     "thickness": 0.035},
+        {"name": "Dielectric 2", "type": "prepreg",   "thickness": 0.5, "material": "FR408HR", "epsilon_r": 3.68, "loss_tangent": 0.009},
+        {"name": "In2.Cu",       "type": "signal",    "thickness": 0.035},
+        {"name": "Dielectric 3", "type": "core",      "thickness": 0.2, "material": "FR408HR", "epsilon_r": 3.68, "loss_tangent": 0.009},
+        {"name": "In3.Cu",       "type": "power",     "thickness": 0.035},
+        {"name": "Dielectric 4", "type": "prepreg",   "thickness": 0.5, "material": "FR408HR", "epsilon_r": 3.68, "loss_tangent": 0.009},
+        {"name": "In4.Cu",       "type": "signal",    "thickness": 0.035},
+        {"name": "Dielectric 5", "type": "core",      "thickness": 0.2, "material": "FR408HR", "epsilon_r": 3.68, "loss_tangent": 0.009},
+        {"name": "In5.Cu",       "type": "power",     "thickness": 0.035},
+        {"name": "Dielectric 6", "type": "prepreg",   "thickness": 0.5, "material": "FR408HR", "epsilon_r": 3.68, "loss_tangent": 0.009},
+        {"name": "In6.Cu",       "type": "signal",    "thickness": 0.035},
+        {"name": "Dielectric 7", "type": "core",      "thickness": 0.1, "material": "FR408HR", "epsilon_r": 3.68, "loss_tangent": 0.009},
+        {"name": "B.Cu",         "type": "signal",    "thickness": 0.035},
+        {"name": "B.Mask",       "type": "solder_mask"},
+        {"name": "B.Silkscreen", "type": "silkscreen"},
+        {"name": "B.Paste",      "type": "solder_paste"}
+      ]
+    },
+    "board_outline": {
+      "enabled": true,
+      "points": [
+        {"x": 0, "y": 0},
+        {"x": 150, "y": 0},
+        {"x": 150, "y": 75},
+        {"x": 0, "y": 75}
+      ]
+    }
+  },
+  "schematic": {
+    "net_format_version": 2,
+    "page_size": "A3",
+    "title_block": {
+      "title": "PentaFrame Carrier Board v1.0",
+      "date": "2026-05-17",
+      "rev": "1.0",
+      "company": "PentaFrame Technologies",
+      "comment1": "Modular Pocket Supercomputer",
+      "comment2": "8-layer PCB, CM5 + RF Frontend + PMC-128"
+    }
+  },
+  "libraries": {
+    "symbol": [
+      "sym/PentaFrame.kicad_sym",
+      "sym/RF_Blocks.kicad_sym"
+    ],
+    "footprint": [
+      "footprints/PentaFrame.pretty",
+      "footprints/RF_Shield.pretty"
+    ]
+  }
+}
